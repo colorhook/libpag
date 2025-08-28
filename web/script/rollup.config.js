@@ -78,4 +78,9 @@ export default [
     output: { banner, file: 'demo/index.js', format: 'esm', sourcemap: true },
     plugins: plugins,
   },
+  {
+    input: 'demo/typemonkey.ts',
+    output: { banner, file: 'demo/typemonkey.js', format: 'esm', sourcemap: true },
+    plugins: plugins,
+  },
 ];

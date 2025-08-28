@@ -74,6 +74,15 @@ export class PAGComposition extends PAGLayer {
   public addLayer(pagLayer: PAGLayer): boolean {
     return this.wasmIns._addLayer(pagLayer.wasmIns) as boolean;
   }
+
+  /**
+   * @patch
+   * @param pagLayer 
+   * @returns 
+   */
+  public attachFile(pagLayer: PAGLayer) {
+    return this.wasmIns._attachFile(pagLayer.wasmIns);
+  }
   /**
    * Add a PAGLayer to current PAGComposition at the top. If you add a layer that already has a
    * different PAGComposition object as a parent, the layer is removed from the other PAGComposition

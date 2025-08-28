@@ -177,6 +177,17 @@ void LayerCache::updateStaticTimeRanges() {
   }
 }
 
+void LayerCache::rebuildTransformAndStaticRanges() {
+  // Recreate transform cache to reflect updated layer->transform and its varying ranges.
+  if (transformCache) {
+    delete transformCache;
+  }
+  transformCache = new TransformCache(layer);
+  // Recompute static time ranges merged with new transform static ranges and other elements.
+  staticTimeRanges.clear();
+  updateStaticTimeRanges();
+}
+
 std::vector<TimeRange> LayerCache::getTrackMatteStaticTimeRanges() {
   auto trackMatteLayer = layer->trackMatteLayer;
   std::vector<TimeRange> timeRanges = {trackMatteLayer->visibleRange()};

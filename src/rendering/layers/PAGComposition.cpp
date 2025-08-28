@@ -164,6 +164,14 @@ bool PAGComposition::addLayer(std::shared_ptr<PAGLayer> pagLayer) {
   return doAddLayer(pagLayer, static_cast<int>(index));
 }
 
+/**
+ * @patch
+ */
+void PAGComposition::attachFile(std::shared_ptr<PAGLayer> pagLayer) {
+  pagLayer->file = file;
+  pagLayer->rootFile = rootFile;
+}
+
 bool PAGComposition::addLayerAt(std::shared_ptr<PAGLayer> pagLayer, int index) {
   if (pagLayer == nullptr) {
     return false;

@@ -2,6 +2,7 @@ import { PAGComposition } from './pag-composition';
 import { destroyVerify } from './utils/decorators';
 import { Matrix } from './core/matrix';
 import { layer2typeLayer, proxyVector } from './utils/type-utils';
+import { Transform2D } from './transform-2d';
 
 import type { LayerType, Marker, Rect } from './types';
 
@@ -221,6 +222,31 @@ export class PAGLayer {
    */
   public isPAGFile(): boolean {
     return this.wasmIns._isPAGFile() as boolean;
+  }
+
+  // --- WASM extension: Transform2D accessors ---
+  public getTransform2D(): Transform2D {
+    const wasmIns = this.wasmIns._getTransform2D();
+    if (!wasmIns) throw new Error('Get Transform2D fail!');
+    return new Transform2D(wasmIns);
+  }
+
+  public setTransform2D(transform: Transform2D): void {
+    this.wasmIns._setTransform2D(transform.wasmIns);
+  }
+
+  /**
+   * @patch
+   */
+  public getMotionBlur(): boolean {
+    return this.wasmIns._getMotionBlur() as boolean;
+  }
+
+  /**
+   * @patch
+   */
+  public setMotionBlur(value: boolean): void{
+    this.wasmIns._setMotionBlur(value);
   }
   /**
    * Returns this layer as a type layer.

@@ -396,11 +396,93 @@ const swapLayer = (type: string) => {
   );
 };
 
+let solidLayer;
+/**
+ * patch
+ * @param file 
+ * @returns 
+ */
+const debugPagView = (pagFile: any) => {
+  const pagComposition = pagFile as PAGComposition
+  // pagComposition.getLayerAt(0).setMotionBlur(true);
+  pagComposition.setMotionBlur(true);
+  const textLayer = PAG.PAGTextLayer.make(2000000, 'TypeMonkey', 30, 'Helvetica', 'Bold');
+  // const matrix = textLayer.matrix();
+  // matrix.setTranslate(100, 100);
+  // textLayer.setMatrix(matrix);
+  textLayer.setMotionBlur(true)
+  const transform = textLayer.getTransform2D()
+  console.log("transform.position()", transform.position())
+  
+  
+  // transform.setXPosition(100);
+  
+  transform.setPositionKeyframes([
+    {
+      startValue: { x: 30, y: 120 },
+      endValue: {x: 60, y: 60},
+      startTime: 0,
+      endTime: 10,
+      interpolationType: 1,
+      bezierIn: [],
+      bezierOut: [],
+    },
+    {
+      startValue: { x: 60, y: 60 },
+      endValue: {x: 30, y: 30},
+      startTime: 10,
+      endTime: 20,
+      interpolationType: 0,
+      bezierIn: [],
+      bezierOut: [],
+    },
+  ])
+  textLayer.setTransform2D(transform)
+  console.log("transform.position()", textLayer.getTransform2D().getPositionKeyframes())
+  // transform.setPosition({ x: 50, y: 50})
+  // console.log("transform.position()", transform.position())
+  
+  
+  console.log("textLayer.uniqueID =", textLayer.uniqueID());
+  // pagComposition.attachFile(textLayer);
+  const layerAdded = pagComposition.addLayer(textLayer);
+  console.log(">>>>>> layerAdded", layerAdded);
+  console.log("pagComposition.numChildren() after", pagComposition.numChildren());
+
+  const textLayer2 = PAG.PAGTextLayer.make(600000, 'One', 30, 'Helvetica', 'Bold');
+  textLayer2.setStartTime(100000)
+  textLayer2.setStrokeColor({
+    red: 100,
+    green: 100,
+    blue: 0,
+  })
+  console.log("textLayer.uniqueID =", textLayer2.uniqueID());
+  pagComposition.addLayer(textLayer2);
+
+ 
+
+  solidLayer = PAG.PAGSolidLayer.make(60000, 30, 30, { red: 255, green: 0, blue: 0 }, 100);
+  // pagComposition.attachFile(solidLayer);
+  pagComposition.addLayer(solidLayer);
+
+  console.log("pagComposition.numChildren() after2", pagComposition.numChildren());
+
+  console.log(">>>>>> solidLayer.uniqueID", solidLayer.uniqueID());
+
+  console.log(">>>>>> textLayer.numChildren", pagComposition.numChildren());
+  console.log(">>>>>> textLayer.fontSize", textLayer.fontSize());
+  console.log(">>>>>> textLayer.text", textLayer.text());
+  console.log(">>>>>> textLayer.fillColor", textLayer.fillColor());
+  console.log(">>>>>> textLayer.numChildren", pagComposition.numChildren());
+}
+
 const createPAGView = async (file: File | ArrayBuffer | Blob) => {
   if (pagFile) pagFile.destroy();
   if (pagView) pagView.destroy();
   const decodeTime = performance.now();
   pagFile = (await PAG.PAGFile.load(file)) as PAGFile;
+  // pagFile = PAG.PAGComposition.make(1080, 1080);
+  debugPagView(pagFile)
   document.getElementById('decode-time')!.innerText = `PAG File decode time: ${Math.floor(
     performance.now() - decodeTime,
   )}ms`;
@@ -411,6 +493,7 @@ const createPAGView = async (file: File | ArrayBuffer | Blob) => {
     performance.now() - initializedTime,
   )}ms`;
   pagView.setRepeatCount(0);
+  
   // 绑定事件监听
   pagView.addListener('onAnimationStart', (event) => {
     console.log('onAnimationStart', event);

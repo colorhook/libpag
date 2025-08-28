@@ -36,6 +36,11 @@ export default [
     plugins: plugins,
   },
   {
+    input: 'demo/typemonkey.ts',
+    output: { banner, file: 'demo/typemonkey.js', format: 'esm', sourcemap: true },
+    plugins: plugins,
+  },
+  {
     input: 'src/pag.ts',
     output: { name: 'libpag', banner, file: 'demo/libpag.js', format: 'umd', exports: 'named', sourcemap: true },
     plugins: plugins,

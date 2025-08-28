@@ -69,6 +69,8 @@ class Graphic;
 
 class PAGLayer;
 
+class Transform2D;
+
 /**
  * An image used to replace the contents of PAGImageLayers in a PAGFile.
  */
@@ -428,6 +430,16 @@ class PAG_API PAGLayer : public Content {
   std::shared_ptr<File> getFile() const;
   void notifyAudioModified();
 
+  /**
+   * @patch
+   */
+  bool getMotionBlur() const;
+  /**
+   * @patch
+   */
+  void setMotionBlur(bool value);
+
+
  protected:
   std::shared_ptr<std::mutex> rootLocker = nullptr;
   Layer* layer = nullptr;
@@ -462,6 +474,21 @@ class PAG_API PAGLayer : public Content {
   virtual bool gotoTime(int64_t layerTime);
   virtual Frame childFrameToLocal(Frame childFrame, float childFrameRate) const;
   virtual Frame localFrameToChild(Frame localFrame, float childFrameRate) const;
+
+  // --- WASM extension: expose 2D transform for get/set ---
+ public:
+  /**
+   * Returns a copy of layer's 2D transform as a standalone object.
+   * Only basic values are populated (anchorPoint, position/x&y, scale, rotation, opacity).
+   * Returns nullptr if the layer has no 2D transform.
+   */
+  std::shared_ptr<Transform2D> getTransform2D() const;
+
+  /**
+   * Applies the provided 2D transform's basic values to this layer.
+   * Only basic values are applied (anchorPoint, position/x&y, scale, rotation, opacity).
+   */
+  void setTransform2D(const std::shared_ptr<Transform2D>& transform);
 
   /**
    * Marks the content of parent (and parent's parent...) changed. It also marks this layer's
@@ -884,6 +911,11 @@ class PAG_API PAGComposition : public PAGLayer {
    * object.
    */
   bool addLayer(std::shared_ptr<PAGLayer> pagLayer);
+
+  /**
+   * @patch attach to PAGFile
+   */
+  void attachFile(std::shared_ptr<PAGLayer> pagLayer);
 
   /**
    * Add a PAGLayer to the current PAGComposition at the specified index. If you add a layer that

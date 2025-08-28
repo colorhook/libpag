@@ -21,7 +21,10 @@
 #include "base/utils/TGFXCast.h"
 #include "pag/pag.h"
 #include "pag/types.h"
+#include "pag/file.h"
 #include "platform/web/GPUDrawable.h"
+#include "base/keyframes/MultiDimensionPointKeyframe.h"
+#include "base/keyframes/SingleEaseKeyframe.h"
 #include "platform/web/WebSoftwareDecoderFactory.h"
 #include "rendering/editing/StillImage.h"
 #include "tgfx/core/ImageInfo.h"
@@ -31,6 +34,183 @@
 using namespace emscripten;
 
 namespace pag {
+
+// --- Lite DTOs for keyframes across WASM boundary ---
+struct KeyframePointLite {
+  Point startValue;
+  Point endValue;
+  int startTime;
+  int endTime;
+  int interpolationType;
+  std::vector<Point> bezierOut;
+  std::vector<Point> bezierIn;
+};
+
+struct KeyframeFloatLite {
+  float startValue;
+  float endValue;
+  int startTime;
+  int endTime;
+  int interpolationType;
+  std::vector<Point> bezierOut;
+  std::vector<Point> bezierIn;
+};
+
+template <typename T>
+static std::vector<KeyframePointLite> GetPointKeyframesFromProperty(Property<T>* /*unused*/);
+
+static std::vector<KeyframePointLite> ToLites(const std::vector<Keyframe<Point>*>& kfs) {
+  std::vector<KeyframePointLite> list;
+  list.reserve(kfs.size());
+  for (auto* k : kfs) {
+    KeyframePointLite lite{};
+    lite.startValue = k->startValue;
+    lite.endValue = k->endValue;
+    lite.startTime = static_cast<int>(k->startTime);
+    lite.endTime = static_cast<int>(k->endTime);
+    lite.interpolationType = static_cast<int>(k->interpolationType);
+    lite.bezierOut = k->bezierOut;
+    lite.bezierIn = k->bezierIn;
+    list.push_back(std::move(lite));
+  }
+  return list;
+}
+
+static std::vector<KeyframeFloatLite> ToLites(const std::vector<Keyframe<float>*>& kfs) {
+  std::vector<KeyframeFloatLite> list;
+  list.reserve(kfs.size());
+  for (auto* k : kfs) {
+    KeyframeFloatLite lite{};
+    lite.startValue = k->startValue;
+    lite.endValue = k->endValue;
+    lite.startTime = static_cast<int>(k->startTime);
+    lite.endTime = static_cast<int>(k->endTime);
+    lite.interpolationType = static_cast<int>(k->interpolationType);
+    lite.bezierOut = k->bezierOut;
+    lite.bezierIn = k->bezierIn;
+    list.push_back(std::move(lite));
+  }
+  return list;
+}
+
+static Keyframe<Point>* FromLite(const KeyframePointLite& lite) {
+  auto* k = new MultiDimensionPointKeyframe();
+  k->startValue = lite.startValue;
+  k->endValue = lite.endValue;
+  k->startTime = static_cast<Frame>(lite.startTime);
+  k->endTime = static_cast<Frame>(lite.endTime);
+  k->interpolationType = static_cast<KeyframeInterpolationType>(lite.interpolationType);
+  k->bezierOut = lite.bezierOut;
+  k->bezierIn = lite.bezierIn;
+  return k;
+}
+
+static Keyframe<float>* FromLite(const KeyframeFloatLite& lite) {
+  auto* k = new SingleEaseKeyframe<float>();
+  k->startValue = lite.startValue;
+  k->endValue = lite.endValue;
+  k->startTime = static_cast<Frame>(lite.startTime);
+  k->endTime = static_cast<Frame>(lite.endTime);
+  k->interpolationType = static_cast<KeyframeInterpolationType>(lite.interpolationType);
+  k->bezierOut = lite.bezierOut;
+  k->bezierIn = lite.bezierIn;
+  return k;
+}
+
+static val ToJSPointArray(const std::vector<Point>& points) {
+  auto arr = val::array();
+  for (size_t i = 0; i < points.size(); ++i) {
+    arr.call<void>("push", points[i]);
+  }
+  return arr;
+}
+
+// Helpers: parse JS arrays (plain) into lite vectors, to allow passing native JS arrays.
+static std::vector<Point> ParsePointArray(const val& jsArray) {
+  std::vector<Point> out;
+  if (!jsArray.as<bool>()) return out;
+  auto len = jsArray["length"].as<unsigned>();
+  out.reserve(len);
+  for (unsigned i = 0; i < len; i++) {
+    auto item = jsArray[i];
+    try {
+      out.push_back(item.as<Point>());
+    } catch (...) {
+      // Fallback: try pick x/y numbers.
+      Point p{};
+      p.x = item.hasOwnProperty("x") ? item["x"].as<float>() : 0.0f;
+      p.y = item.hasOwnProperty("y") ? item["y"].as<float>() : 0.0f;
+      out.push_back(p);
+    }
+  }
+  return out;
+}
+
+static std::vector<KeyframePointLite> ParseKeyframePointLites(const val& jsArray) {
+  std::vector<KeyframePointLite> list;
+  if (!jsArray.as<bool>()) return list;
+  auto len = jsArray["length"].as<unsigned>();
+  list.reserve(len);
+  for (unsigned i = 0; i < len; i++) {
+    auto item = jsArray[i];
+    KeyframePointLite lite{};
+    try {
+      lite.startValue = item["startValue"].as<Point>();
+    } catch (...) {
+      lite.startValue = Point::Zero();
+    }
+    try {
+      lite.endValue = item["endValue"].as<Point>();
+    } catch (...) {
+      lite.endValue = Point::Zero();
+    }
+    lite.startTime = item.hasOwnProperty("startTime") ? item["startTime"].as<int>() : 0;
+    lite.endTime = item.hasOwnProperty("endTime") ? item["endTime"].as<int>() : 0;
+    lite.interpolationType = item.hasOwnProperty("interpolationType") ? item["interpolationType"].as<int>() : 0;
+    lite.bezierOut = item.hasOwnProperty("bezierOut") ? ParsePointArray(item["bezierOut"]) : std::vector<Point>{};
+    lite.bezierIn = item.hasOwnProperty("bezierIn") ? ParsePointArray(item["bezierIn"]) : std::vector<Point>{};
+    list.push_back(std::move(lite));
+  }
+  return list;
+}
+
+static std::vector<KeyframeFloatLite> ParseKeyframeFloatLites(const val& jsArray) {
+  std::vector<KeyframeFloatLite> list;
+  if (!jsArray.as<bool>()) return list;
+  auto len = jsArray["length"].as<unsigned>();
+  list.reserve(len);
+  for (unsigned i = 0; i < len; i++) {
+    auto item = jsArray[i];
+    KeyframeFloatLite lite{};
+    lite.startValue = item.hasOwnProperty("startValue") ? item["startValue"].as<float>() : 0.0f;
+    lite.endValue = item.hasOwnProperty("endValue") ? item["endValue"].as<float>() : 0.0f;
+    lite.startTime = item.hasOwnProperty("startTime") ? item["startTime"].as<int>() : 0;
+    lite.endTime = item.hasOwnProperty("endTime") ? item["endTime"].as<int>() : 0;
+    lite.interpolationType = item.hasOwnProperty("interpolationType") ? item["interpolationType"].as<int>() : 0;
+    lite.bezierOut = item.hasOwnProperty("bezierOut") ? ParsePointArray(item["bezierOut"]) : std::vector<Point>{};
+    lite.bezierIn = item.hasOwnProperty("bezierIn") ? ParsePointArray(item["bezierIn"]) : std::vector<Point>{};
+    list.push_back(std::move(lite));
+  }
+  return list;
+}
+
+template <typename T>
+static void ReplaceWithAnimatable(Property<T>** target, const std::vector<Keyframe<T>*>& keyframes,
+                                  const T& fallback) {
+  if (target == nullptr) return;
+  if (!keyframes.empty()) {
+    delete *target;
+    *target = new AnimatableProperty<T>(keyframes);
+  } else {
+    // clear animation and use simple property with current or default value
+    T value = fallback;
+    if (*target != nullptr) {
+      value = (*target)->getValueAt(ZeroFrame);
+    }
+    delete *target;
+    *target = new Property<T>(value);
+  }
+}
 
 std::unique_ptr<ByteData> CopyDataFromUint8Array(const val& emscriptenData) {
   if (!emscriptenData.as<bool>()) {
@@ -115,7 +295,14 @@ bool PAGBindInit() {
       .function("_trackMatteLayer", &PAGLayer::trackMatteLayer)
       .function("_excludedFromTimeline", &PAGLayer::excludedFromTimeline)
       .function("_setExcludedFromTimeline", &PAGLayer::setExcludedFromTimeline)
-      .function("_isPAGFile", &PAGLayer::isPAGFile);
+      .function("_isPAGFile", &PAGLayer::isPAGFile)
+      // WASM extension: Transform2D get/set
+      .function("_getTransform2D", &PAGLayer::getTransform2D)
+      .function("_setTransform2D", &PAGLayer::setTransform2D)
+      /** @patch */
+      .function("_getMotionBlur", &PAGLayer::getMotionBlur)
+      /** @patch */
+      .function("_setMotionBlur", &PAGLayer::setMotionBlur);
 
   class_<PAGSolidLayer, base<PAGLayer>>("_PAGSolidLayer")
       .smart_ptr<std::shared_ptr<PAGSolidLayer>>("_PAGSolidLayer")
@@ -202,6 +389,8 @@ bool PAGBindInit() {
       .function("_setLayerIndex", &PAGComposition::setLayerIndex)
       .function("_addLayer", &PAGComposition::addLayer)
       .function("_addLayerAt", &PAGComposition::addLayerAt)
+      // @patch
+      .function("_attachFile", &PAGComposition::attachFile)
       .function("_contains", &PAGComposition::contains)
       .function("_removeLayer", &PAGComposition::removeLayer)
       .function("_removeLayerAt", &PAGComposition::removeLayerAt)
@@ -494,7 +683,7 @@ bool PAGBindInit() {
                   return matrix.postSkew(kx, ky, px, py);
                 }))
       .function("_postConcat", &Matrix::postConcat);
-
+  
   class_<TextDocument>("TextDocument")
       .smart_ptr<std::shared_ptr<TextDocument>>("TextDocument")
       .property("applyFill", &TextDocument::applyFill)
@@ -558,6 +747,306 @@ bool PAGBindInit() {
 
   register_vector<std::shared_ptr<PAGLayer>>("VectorPAGLayer");
   register_vector<Marker>("VectorMarker");
+  register_vector<Point>("VectorPoint");
+
+  // Lite keyframe bindings
+  value_object<KeyframePointLite>("KeyframePointLite")
+      .field("startValue", &KeyframePointLite::startValue)
+      .field("endValue", &KeyframePointLite::endValue)
+      .field("startTime", &KeyframePointLite::startTime)
+      .field("endTime", &KeyframePointLite::endTime)
+      .field("interpolationType", &KeyframePointLite::interpolationType)
+      .field("bezierOut", &KeyframePointLite::bezierOut)
+      .field("bezierIn", &KeyframePointLite::bezierIn);
+
+  value_object<KeyframeFloatLite>("KeyframeFloatLite")
+      .field("startValue", &KeyframeFloatLite::startValue)
+      .field("endValue", &KeyframeFloatLite::endValue)
+      .field("startTime", &KeyframeFloatLite::startTime)
+      .field("endTime", &KeyframeFloatLite::endTime)
+      .field("interpolationType", &KeyframeFloatLite::interpolationType)
+      .field("bezierOut", &KeyframeFloatLite::bezierOut)
+      .field("bezierIn", &KeyframeFloatLite::bezierIn);
+
+  register_vector<KeyframePointLite>("VectorKeyframePointLite");
+  register_vector<KeyframeFloatLite>("VectorKeyframeFloatLite");
+
+  // --- WASM extension: basic Property/Keyframe and Transform2D bindings ---
+  class_<Property<float>>("_PropertyFloat")
+      .function("_getValue", optional_override([](Property<float>& p) { return p.value; }))
+      .function("_setValue", optional_override([](Property<float>& p, float v) { p.value = v; }));
+
+  class_<Property<Point>>("_PropertyPoint")
+      .function("_getValue", optional_override([](Property<Point>& p) { return p.value; }))
+      .function("_setValue", optional_override([](Property<Point>& p, const Point& v) {
+                p.value = v;
+              }));
+
+  class_<Property<Opacity>>("_PropertyOpacity")
+      .function("_getValue", optional_override([](Property<Opacity>& p) {
+                return static_cast<int>(p.value);
+              }))
+      .function("_setValue", optional_override([](Property<Opacity>& p, int v) {
+                p.value = static_cast<Opacity>(v);
+              }));
+
+  // Keyframe export omitted to keep bindings minimal and avoid policy instantiation issues.
+
+  class_<AnimatableProperty<float>, base<Property<float>>>("_AnimatablePropertyFloat");
+  class_<AnimatableProperty<Point>, base<Property<Point>>>("_AnimatablePropertyPoint");
+
+  class_<Transform2D>("_Transform2D")
+      .smart_ptr<std::shared_ptr<Transform2D>>("_Transform2D")
+      // anchorPoint
+      .function("_getAnchorPoint", optional_override([](Transform2D& t) {
+                return t.anchorPoint ? t.anchorPoint->value : Point::Zero();
+              }))
+      .function("_setAnchorPoint", optional_override([](Transform2D& t, const Point& v) {
+                if (!t.anchorPoint) t.anchorPoint = new Property<Point>();
+                t.anchorPoint->value = v;
+              }))
+      // position
+      .function("_getPosition", optional_override([](Transform2D& t) {
+                if (t.position) return t.position->value;
+                Point p = Point::Zero();
+                if (t.xPosition) p.x = t.xPosition->value;
+                if (t.yPosition) p.y = t.yPosition->value;
+                return p;
+              }))
+      .function("_setPosition", optional_override([](Transform2D& t, const Point& v) {
+                if (!t.position) t.position = new Property<Point>();
+                t.position->value = v;
+                if (t.xPosition) {
+                  delete t.xPosition;
+                  t.xPosition = nullptr;
+                }
+                if (t.yPosition) {
+                  delete t.yPosition;
+                  t.yPosition = nullptr;
+                }
+              }))
+      .function("_getXPosition", optional_override([](Transform2D& t) {
+                return t.xPosition ? t.xPosition->value : (t.position ? t.position->value.x : 0.0f);
+              }))
+      .function("_setXPosition", optional_override([](Transform2D& t, float v) {
+                if (t.position) {
+                  t.position->value.x = v;
+                } else {
+                  if (!t.xPosition) t.xPosition = new Property<float>();
+                  t.xPosition->value = v;
+                }
+              }))
+      .function("_getYPosition", optional_override([](Transform2D& t) {
+                return t.yPosition ? t.yPosition->value : (t.position ? t.position->value.y : 0.0f);
+              }))
+      .function("_setYPosition", optional_override([](Transform2D& t, float v) {
+                if (t.position) {
+                  t.position->value.y = v;
+                } else {
+                  if (!t.yPosition) t.yPosition = new Property<float>();
+                  t.yPosition->value = v;
+                }
+              }))
+      // scale
+      .function("_getScale", optional_override([](Transform2D& t) {
+                return t.scale ? t.scale->value : Point::Make(1, 1);
+              }))
+      .function("_setScale", optional_override([](Transform2D& t, const Point& v) {
+                if (!t.scale) t.scale = new Property<Point>();
+                t.scale->value = v;
+              }))
+      // rotation
+      .function("_getRotation", optional_override([](Transform2D& t) {
+                return t.rotation ? t.rotation->value : 0.0f;
+              }))
+      .function("_setRotation", optional_override([](Transform2D& t, float v) {
+                if (!t.rotation) t.rotation = new Property<float>();
+                t.rotation->value = v;
+              }))
+      // opacity
+      .function("_getOpacity", optional_override([](Transform2D& t) {
+                return t.opacity ? static_cast<int>(t.opacity->value) : static_cast<int>(Opaque);
+              }))
+      .function("_setOpacity", optional_override([](Transform2D& t, int v) {
+                if (!t.opacity) t.opacity = new Property<Opacity>();
+                t.opacity->value = static_cast<Opacity>(v);
+              }))
+      // --- Keyframes getters ---
+      .function("_getAnchorPointKeyframes",
+                optional_override([](Transform2D& t) {
+                  auto arr = val::array();
+                  if (t.anchorPoint && t.anchorPoint->animatable()) {
+                    auto* ap = static_cast<AnimatableProperty<Point>*>(t.anchorPoint);
+                    auto res = ToLites(ap->keyframes);
+                    for (unsigned i = 0; i < res.size(); ++i) {
+                      const auto& lite = res[i];
+                      auto o = val::object();
+                      o.set("startValue", lite.startValue);
+                      o.set("endValue", lite.endValue);
+                      o.set("startTime", lite.startTime);
+                      o.set("endTime", lite.endTime);
+                      o.set("interpolationType", lite.interpolationType);
+                      o.set("bezierOut", ToJSPointArray(lite.bezierOut));
+                      o.set("bezierIn", ToJSPointArray(lite.bezierIn));
+                      arr.call<void>("push", o);
+                    }
+                  }
+                  return arr;
+                }))
+      .function("_getPositionKeyframes",
+                optional_override([](Transform2D& t) {
+                  auto arr = val::array();
+                  if (t.position && t.position->animatable()) {
+                    auto* p = static_cast<AnimatableProperty<Point>*>(t.position);
+                    auto res = ToLites(p->keyframes);
+                    for (unsigned i = 0; i < res.size(); ++i) {
+                      const auto& lite = res[i];
+                      auto o = val::object();
+                      o.set("startValue", lite.startValue);
+                      o.set("endValue", lite.endValue);
+                      o.set("startTime", lite.startTime);
+                      o.set("endTime", lite.endTime);
+                      o.set("interpolationType", lite.interpolationType);
+                      o.set("bezierOut", ToJSPointArray(lite.bezierOut));
+                      o.set("bezierIn", ToJSPointArray(lite.bezierIn));
+                      arr.call<void>("push", o);
+                    }
+                  }
+                  return arr;
+                }))
+      .function("_getScaleKeyframes",
+                optional_override([](Transform2D& t) {
+                  auto arr = val::array();
+                  if (t.scale && t.scale->animatable()) {
+                    auto* p = static_cast<AnimatableProperty<Point>*>(t.scale);
+                    auto res = ToLites(p->keyframes);
+                    for (unsigned i = 0; i < res.size(); ++i) {
+                      const auto& lite = res[i];
+                      auto o = val::object();
+                      o.set("startValue", lite.startValue);
+                      o.set("endValue", lite.endValue);
+                      o.set("startTime", lite.startTime);
+                      o.set("endTime", lite.endTime);
+                      o.set("interpolationType", lite.interpolationType);
+                      o.set("bezierOut", ToJSPointArray(lite.bezierOut));
+                      o.set("bezierIn", ToJSPointArray(lite.bezierIn));
+                      arr.call<void>("push", o);
+                    }
+                  }
+                  return arr;
+                }))
+      .function("_getRotationKeyframes",
+                optional_override([](Transform2D& t) {
+                  auto arr = val::array();
+                  if (t.rotation && t.rotation->animatable()) {
+                    auto* p = static_cast<AnimatableProperty<float>*>(t.rotation);
+                    auto res = ToLites(p->keyframes);
+                    for (unsigned i = 0; i < res.size(); ++i) {
+                      const auto& lite = res[i];
+                      auto o = val::object();
+                      o.set("startValue", lite.startValue);
+                      o.set("endValue", lite.endValue);
+                      o.set("startTime", lite.startTime);
+                      o.set("endTime", lite.endTime);
+                      o.set("interpolationType", lite.interpolationType);
+                      o.set("bezierOut", ToJSPointArray(lite.bezierOut));
+                      o.set("bezierIn", ToJSPointArray(lite.bezierIn));
+                      arr.call<void>("push", o);
+                    }
+                  }
+                  return arr;
+                }))
+      .function("_getOpacityKeyframes",
+                optional_override([](Transform2D& t) {
+                  auto arr = val::array();
+                  if (t.opacity && t.opacity->animatable()) {
+                    auto* p = static_cast<AnimatableProperty<Opacity>*>(t.opacity);
+                    for (auto* k : p->keyframes) {
+                      auto o = val::object();
+                      o.set("startValue", static_cast<float>(k->startValue));
+                      o.set("endValue", static_cast<float>(k->endValue));
+                      o.set("startTime", static_cast<int>(k->startTime));
+                      o.set("endTime", static_cast<int>(k->endTime));
+                      o.set("interpolationType", static_cast<int>(k->interpolationType));
+                      o.set("bezierOut", ToJSPointArray(k->bezierOut));
+                      o.set("bezierIn", ToJSPointArray(k->bezierIn));
+                      arr.call<void>("push", o);
+                    }
+                  }
+                  return arr;
+                }))
+      // --- Keyframes setters ---
+      .function("_setAnchorPointKeyframes",
+                optional_override([](Transform2D& t, const val& jsList) {
+                  auto list = ParseKeyframePointLites(jsList);
+                  std::vector<Keyframe<Point>*> keyframes;
+                  keyframes.reserve(list.size());
+                  for (auto& lite : list) keyframes.push_back(FromLite(lite));
+                  ReplaceWithAnimatable<Point>(&t.anchorPoint, keyframes, Point::Zero());
+                }))
+      .function("_setPositionKeyframes",
+                optional_override([](Transform2D& t, const val& jsList) {
+                  auto list = ParseKeyframePointLites(jsList);
+                  std::vector<Keyframe<Point>*> keyframes;
+                  keyframes.reserve(list.size());
+                  for (auto& lite : list) keyframes.push_back(FromLite(lite));
+                  // Use unified position; clear x/y if present
+                  if (t.xPosition) {
+                    delete t.xPosition;
+                    t.xPosition = nullptr;
+                  }
+                  if (t.yPosition) {
+                    delete t.yPosition;
+                    t.yPosition = nullptr;
+                  }
+                  ReplaceWithAnimatable<Point>(&t.position, keyframes, Point::Zero());
+                }))
+      .function("_setScaleKeyframes",
+                optional_override([](Transform2D& t, const val& jsList) {
+                  auto list = ParseKeyframePointLites(jsList);
+                  std::vector<Keyframe<Point>*> keyframes;
+                  keyframes.reserve(list.size());
+                  for (auto& lite : list) keyframes.push_back(FromLite(lite));
+                  ReplaceWithAnimatable<Point>(&t.scale, keyframes, Point::Make(1, 1));
+                }))
+      .function("_setRotationKeyframes",
+                optional_override([](Transform2D& t, const val& jsList) {
+                  auto list = ParseKeyframeFloatLites(jsList);
+                  std::vector<Keyframe<float>*> keyframes;
+                  keyframes.reserve(list.size());
+                  for (auto& lite : list) keyframes.push_back(FromLite(lite));
+                  ReplaceWithAnimatable<float>(&t.rotation, keyframes, 0.0f);
+                }))
+      .function("_setOpacityKeyframes",
+                optional_override([](Transform2D& t, const val& jsList) {
+                  auto list = ParseKeyframeFloatLites(jsList);
+                  if (list.empty()) {
+                    // clear animation
+                    Opacity cur = t.opacity ? t.opacity->getValueAt(ZeroFrame) : Opaque;
+                    delete t.opacity;
+                    t.opacity = new Property<Opacity>(cur);
+                    return;
+                  }
+                  std::vector<Keyframe<Opacity>*> keyframes;
+                  keyframes.reserve(list.size());
+                  for (auto& lite : list) {
+                    auto* k = new SingleEaseKeyframe<Opacity>();
+                    auto clamp255 = [](float v) {
+                      if (v < 0) v = 0; if (v > 255) v = 255; return static_cast<Opacity>(v);
+                    };
+                    k->startValue = clamp255(lite.startValue);
+                    k->endValue = clamp255(lite.endValue);
+                    k->startTime = static_cast<Frame>(lite.startTime);
+                    k->endTime = static_cast<Frame>(lite.endTime);
+                    k->interpolationType = static_cast<KeyframeInterpolationType>(lite.interpolationType);
+                    k->bezierOut = lite.bezierOut;
+                    k->bezierIn = lite.bezierIn;
+                    keyframes.push_back(k);
+                  }
+                  delete t.opacity;
+                  t.opacity = new AnimatableProperty<Opacity>(keyframes);
+                }));
+
   return true;
 }
 }  // namespace pag

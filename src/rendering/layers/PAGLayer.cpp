@@ -20,6 +20,9 @@
 #include "base/utils/TimeUtil.h"
 #include "base/utils/UniqueID.h"
 #include "pag/pag.h"
+#include "base/keyframes/MultiDimensionPointKeyframe.h"
+#include "base/keyframes/SingleEaseKeyframe.h"
+#include "pag/file.h"
 #include "rendering/caches/LayerCache.h"
 #include "rendering/caches/RenderCache.h"
 #include "rendering/layers/PAGStage.h"
@@ -326,6 +329,21 @@ void PAGLayer::nextFrame() {
   nextFrameInternal();
 }
 
+/**
+ * @patch
+ */
+bool PAGLayer::getMotionBlur() const {
+  LockGuard autoLock(rootLocker);
+  return layer->motionBlur;
+}
+/**
+ * @patch
+ */
+void PAGLayer::setMotionBlur(bool value) {
+  LockGuard autoLock(rootLocker);
+  layer->motionBlur = value;
+}
+
 void PAGLayer::nextFrameInternal() {
   auto totalFrames = stretchedFrameDuration();
   if (totalFrames <= 1) {
@@ -568,6 +586,229 @@ std::shared_ptr<File> PAGLayer::getFile() const {
 
 bool PAGLayer::frameVisible() const {
   return contentFrame >= 0 && contentFrame < frameDuration();
+}
+
+namespace {
+template <typename T>
+static Keyframe<T>* CloneKeyframeDerived(Keyframe<T>* k) {
+  // Generic fallback: SingleEase for scalar-like types, simple Keyframe for others.
+  auto* nk = new SingleEaseKeyframe<T>();
+  nk->startValue = k->startValue;
+  nk->endValue = k->endValue;
+  nk->startTime = k->startTime;
+  nk->endTime = k->endTime;
+  nk->interpolationType = k->interpolationType;
+  nk->bezierOut = k->bezierOut;
+  nk->bezierIn = k->bezierIn;
+  nk->spatialOut = k->spatialOut;
+  nk->spatialIn = k->spatialIn;
+  return nk;
+}
+
+// Specialization for Point to preserve multi-dimension/spatial behavior.
+template <>
+Keyframe<Point>* CloneKeyframeDerived<Point>(Keyframe<Point>* k) {
+  // Always clone Point keyframes as MultiDimensionPointKeyframe to ensure proper x/y interpolation
+  // without RTTI (emscripten builds with -fno-rtti).
+  auto* nk = new MultiDimensionPointKeyframe();
+  nk->startValue = k->startValue;
+  nk->endValue = k->endValue;
+  nk->startTime = k->startTime;
+  nk->endTime = k->endTime;
+  nk->interpolationType = k->interpolationType;
+  nk->bezierOut = k->bezierOut;
+  nk->bezierIn = k->bezierIn;
+  nk->spatialOut = k->spatialOut;
+  nk->spatialIn = k->spatialIn;
+  return nk;
+}
+
+// Specialization for float keeps SingleEase.
+template <>
+Keyframe<float>* CloneKeyframeDerived<float>(Keyframe<float>* k) {
+  auto* nk = new SingleEaseKeyframe<float>();
+  nk->startValue = k->startValue;
+  nk->endValue = k->endValue;
+  nk->startTime = k->startTime;
+  nk->endTime = k->endTime;
+  nk->interpolationType = k->interpolationType;
+  nk->bezierOut = k->bezierOut;
+  nk->bezierIn = k->bezierIn;
+  return nk;
+}
+
+// Specialization for Opacity keeps SingleEase.
+template <>
+Keyframe<Opacity>* CloneKeyframeDerived<Opacity>(Keyframe<Opacity>* k) {
+  auto* nk = new SingleEaseKeyframe<Opacity>();
+  nk->startValue = k->startValue;
+  nk->endValue = k->endValue;
+  nk->startTime = k->startTime;
+  nk->endTime = k->endTime;
+  nk->interpolationType = k->interpolationType;
+  nk->bezierOut = k->bezierOut;
+  nk->bezierIn = k->bezierIn;
+  return nk;
+}
+
+template <typename T>
+static Property<T>* DeepCloneProperty(Property<T>* src) {
+  if (src == nullptr) return nullptr;
+  if (src->animatable()) {
+    auto* as = static_cast<AnimatableProperty<T>*>(src);
+    std::vector<Keyframe<T>*> kfs;
+    kfs.reserve(as->keyframes.size());
+    for (auto* k : as->keyframes) {
+      kfs.push_back(CloneKeyframeDerived<T>(k));
+    }
+    return new AnimatableProperty<T>(kfs);
+  }
+  return new Property<T>(src->value);
+}
+}
+
+std::shared_ptr<Transform2D> PAGLayer::getTransform2D() const {
+  LockGuard autoLock(rootLocker);
+  if (layer == nullptr || layer->transform == nullptr) {
+    return nullptr;
+  }
+  auto src = layer->transform;
+  auto copy = std::shared_ptr<Transform2D>(Transform2D::MakeDefault().release());
+
+  // anchorPoint
+  if (copy->anchorPoint) {
+    delete copy->anchorPoint;
+  }
+  copy->anchorPoint = DeepCloneProperty<Point>(src->anchorPoint);
+
+  // position or x/y position
+  if (src->position != nullptr) {
+    if (copy->position) delete copy->position;
+    copy->position = DeepCloneProperty<Point>(src->position);
+    if (copy->xPosition) {
+      delete copy->xPosition;
+      copy->xPosition = nullptr;
+    }
+    if (copy->yPosition) {
+      delete copy->yPosition;
+      copy->yPosition = nullptr;
+    }
+  } else {
+    // x/y
+    if (copy->position) {
+      delete copy->position;
+      copy->position = nullptr;
+    }
+    if (copy->xPosition) { delete copy->xPosition; copy->xPosition = nullptr; }
+    if (copy->yPosition) { delete copy->yPosition; copy->yPosition = nullptr; }
+    copy->xPosition = DeepCloneProperty<float>(src->xPosition);
+    copy->yPosition = DeepCloneProperty<float>(src->yPosition);
+  }
+
+  // scale
+  if (copy->scale) delete copy->scale;
+  copy->scale = DeepCloneProperty<Point>(src->scale);
+
+  // rotation
+  if (copy->rotation) delete copy->rotation;
+  copy->rotation = DeepCloneProperty<float>(src->rotation);
+
+  // opacity
+  if (copy->opacity) delete copy->opacity;
+  copy->opacity = DeepCloneProperty<Opacity>(src->opacity);
+
+  return copy;
+}
+
+namespace {
+template <typename T>
+Property<T>* CloneProperty(Property<T>* src) {
+  if (src == nullptr) return nullptr;
+  if (src->animatable()) {
+    auto* as = static_cast<AnimatableProperty<T>*>(src);
+    std::vector<Keyframe<T>*> kfs;
+    kfs.reserve(as->keyframes.size());
+    for (auto* k : as->keyframes) {
+      auto* nk = new Keyframe<T>();
+      nk->startValue = k->startValue;
+      nk->endValue = k->endValue;
+      nk->startTime = k->startTime;
+      nk->endTime = k->endTime;
+      nk->interpolationType = k->interpolationType;
+      nk->bezierOut = k->bezierOut;
+      nk->bezierIn = k->bezierIn;
+      nk->spatialOut = k->spatialOut;
+      nk->spatialIn = k->spatialIn;
+      kfs.push_back(nk);
+    }
+    return new AnimatableProperty<T>(kfs);
+  }
+  return new Property<T>(src->value);
+}
+}
+
+void PAGLayer::setTransform2D(const std::shared_ptr<Transform2D>& transform2d) {
+  if (!transform2d) return;
+  LockGuard autoLock(rootLocker);
+  if (layer == nullptr) return;
+  if (layer->transform == nullptr) {
+    layer->transform = Transform2D::MakeDefault().release();
+  }
+  auto* target = layer->transform;
+  // anchorPoint
+  if (transform2d->anchorPoint) {
+    delete target->anchorPoint;
+    target->anchorPoint = DeepCloneProperty<Point>(transform2d->anchorPoint);
+  }
+  // position or x/y
+  if (transform2d->position != nullptr) {
+    // Use unified position: clone position, clear x/y on target
+    delete target->position;
+    target->position = DeepCloneProperty<Point>(transform2d->position);
+    if (target->xPosition) {
+      delete target->xPosition;
+      target->xPosition = nullptr;
+    }
+    if (target->yPosition) {
+      delete target->yPosition;
+      target->yPosition = nullptr;
+    }
+  } else {
+    // Separate x/y
+    if (target->position) {
+      delete target->position;
+      target->position = nullptr;
+    }
+    if (transform2d->xPosition) {
+      delete target->xPosition;
+      target->xPosition = DeepCloneProperty<float>(transform2d->xPosition);
+    }
+    if (transform2d->yPosition) {
+      delete target->yPosition;
+      target->yPosition = DeepCloneProperty<float>(transform2d->yPosition);
+    }
+  }
+  // scale
+  if (transform2d->scale) {
+    delete target->scale;
+    target->scale = DeepCloneProperty<Point>(transform2d->scale);
+  }
+  // rotation
+  if (transform2d->rotation) {
+    delete target->rotation;
+    target->rotation = DeepCloneProperty<float>(transform2d->rotation);
+  }
+  // opacity
+  if (transform2d->opacity) {
+    delete target->opacity;
+    target->opacity = DeepCloneProperty<Opacity>(transform2d->opacity);
+  }
+  // Mark modified so rendering updates.
+  // Rebuild transform/static caches to reflect new animation varying ranges.
+  if (layerCache) {
+    layerCache->rebuildTransformAndStaticRanges();
+  }
+  notifyModified(true);
 }
 
 }  // namespace pag

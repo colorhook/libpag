@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TypeMonkey Minimal Demo</title>
+    <style>
+      html, body { margin:0; padding:0; height:100%; background:#f2f2f2; color:#333; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+      .wrap { display:flex; align-items:center; justify-content:center; height:100%; }
+      canvas { width:360px; height:640px; background:#eee; border:1px solid #222; }
+      .panel { position:fixed; top:12px; left:12px; font-size:12px; opacity:.9; }
+      .panel button { margin-right:8px; }
+    </style>
+  </head>
+  <body>
+    <div class="panel">
+      <button id="play">Play</button>
+      <button id="pause">Pause</button>
+      <span id="status"></span>
+    </div>
+    <div class="wrap">
+      <canvas id="tm-canvas" width="1080" height="1920"></canvas>
+    </div>
+    <script type="module" src="./typemonkey.js"></script>
+  </body>
+  </html>
+

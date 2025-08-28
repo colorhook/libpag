@@ -63,6 +63,9 @@ class LayerCache : public Cache {
     return contentCache->cacheFilters();
   }
 
+  // Rebuilds transform cache and recomputes static time ranges.
+  void rebuildTransformAndStaticRanges();
+
  private:
   Layer* layer = nullptr;
   TransformCache* transformCache = nullptr;

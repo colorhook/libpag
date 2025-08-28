@@ -299,6 +299,9 @@ bool PAGBindInit() {
       // WASM extension: Transform2D get/set
       .function("_getTransform2D", &PAGLayer::getTransform2D)
       .function("_setTransform2D", &PAGLayer::setTransform2D)
+      // WASM extension: Transform3D get/set
+      .function("_getTransform3D", &PAGLayer::getTransform3D)
+      .function("_setTransform3D", &PAGLayer::setTransform3D)
       /** @patch */
       .function("_getMotionBlur", &PAGLayer::getMotionBlur)
       /** @patch */
@@ -717,6 +720,7 @@ bool PAGBindInit() {
       .field("bottom", &Rect::bottom);
 
   value_object<Point>("Point").field("x", &Point::x).field("y", &Point::y);
+  value_object<Point3D>("Point3D").field("x", &Point3D::x).field("y", &Point3D::y).field("z", &Point3D::z);
 
   value_object<Color>("Color")
       .field("red", &Color::red)
@@ -748,6 +752,98 @@ bool PAGBindInit() {
   register_vector<std::shared_ptr<PAGLayer>>("VectorPAGLayer");
   register_vector<Marker>("VectorMarker");
   register_vector<Point>("VectorPoint");
+
+  // Transform3D bindings
+  class_<Transform3D>("_Transform3D")
+      .smart_ptr_constructor("_Transform3D", &std::make_shared<Transform3D>)
+      .function("_getAnchorPoint", optional_override([](Transform3D& t) {
+                return t.anchorPoint ? t.anchorPoint->getValueAt(ZeroFrame) : Point3D::Zero();
+              }))
+      .function("_setAnchorPoint", optional_override([](Transform3D& t, const Point3D& v) {
+                if (!t.anchorPoint) t.anchorPoint = new Property<Point3D>();
+                t.anchorPoint->value = v;
+              }))
+      .function("_getPosition", optional_override([](Transform3D& t) {
+                if (t.position) return t.position->getValueAt(ZeroFrame);
+                Point3D p = Point3D::Zero();
+                if (t.xPosition) p.x = t.xPosition->getValueAt(ZeroFrame);
+                if (t.yPosition) p.y = t.yPosition->getValueAt(ZeroFrame);
+                if (t.zPosition) p.z = t.zPosition->getValueAt(ZeroFrame);
+                return p;
+              }))
+      .function("_setPosition", optional_override([](Transform3D& t, const Point3D& v) {
+                if (!t.position) t.position = new Property<Point3D>();
+                t.position->value = v;
+                if (t.xPosition) { delete t.xPosition; t.xPosition = nullptr; }
+                if (t.yPosition) { delete t.yPosition; t.yPosition = nullptr; }
+                if (t.zPosition) { delete t.zPosition; t.zPosition = nullptr; }
+              }))
+      .function("_getXPosition", optional_override([](Transform3D& t) {
+                return t.xPosition ? t.xPosition->getValueAt(ZeroFrame) : (t.position ? t.position->getValueAt(ZeroFrame).x : 0.0f);
+              }))
+      .function("_setXPosition", optional_override([](Transform3D& t, float v) {
+                if (t.position) { t.position->value.x = v; return; }
+                if (!t.xPosition) t.xPosition = new Property<float>();
+                t.xPosition->value = v;
+              }))
+      .function("_getYPosition", optional_override([](Transform3D& t) {
+                return t.yPosition ? t.yPosition->getValueAt(ZeroFrame) : (t.position ? t.position->getValueAt(ZeroFrame).y : 0.0f);
+              }))
+      .function("_setYPosition", optional_override([](Transform3D& t, float v) {
+                if (t.position) { t.position->value.y = v; return; }
+                if (!t.yPosition) t.yPosition = new Property<float>();
+                t.yPosition->value = v;
+              }))
+      .function("_getZPosition", optional_override([](Transform3D& t) {
+                return t.zPosition ? t.zPosition->getValueAt(ZeroFrame) : (t.position ? t.position->getValueAt(ZeroFrame).z : 0.0f);
+              }))
+      .function("_setZPosition", optional_override([](Transform3D& t, float v) {
+                if (t.position) { t.position->value.z = v; return; }
+                if (!t.zPosition) t.zPosition = new Property<float>();
+                t.zPosition->value = v;
+              }))
+      .function("_getScale", optional_override([](Transform3D& t) {
+                return t.scale ? t.scale->getValueAt(ZeroFrame) : Point3D::Make(1,1,1);
+              }))
+      .function("_setScale", optional_override([](Transform3D& t, const Point3D& v) {
+                if (!t.scale) t.scale = new Property<Point3D>();
+                t.scale->value = v;
+              }))
+      .function("_getOrientation", optional_override([](Transform3D& t) {
+                return t.orientation ? t.orientation->getValueAt(ZeroFrame) : Point3D::Zero();
+              }))
+      .function("_setOrientation", optional_override([](Transform3D& t, const Point3D& v) {
+                if (!t.orientation) t.orientation = new Property<Point3D>();
+                t.orientation->value = v;
+              }))
+      .function("_getXRotation", optional_override([](Transform3D& t) {
+                return t.xRotation ? t.xRotation->getValueAt(ZeroFrame) : 0.0f;
+              }))
+      .function("_setXRotation", optional_override([](Transform3D& t, float v) {
+                if (!t.xRotation) t.xRotation = new Property<float>();
+                t.xRotation->value = v;
+              }))
+      .function("_getYRotation", optional_override([](Transform3D& t) {
+                return t.yRotation ? t.yRotation->getValueAt(ZeroFrame) : 0.0f;
+              }))
+      .function("_setYRotation", optional_override([](Transform3D& t, float v) {
+                if (!t.yRotation) t.yRotation = new Property<float>();
+                t.yRotation->value = v;
+              }))
+      .function("_getZRotation", optional_override([](Transform3D& t) {
+                return t.zRotation ? t.zRotation->getValueAt(ZeroFrame) : 0.0f;
+              }))
+      .function("_setZRotation", optional_override([](Transform3D& t, float v) {
+                if (!t.zRotation) t.zRotation = new Property<float>();
+                t.zRotation->value = v;
+              }))
+      .function("_getOpacity", optional_override([](Transform3D& t) {
+                return t.opacity ? static_cast<int>(t.opacity->getValueAt(ZeroFrame)) : static_cast<int>(Opaque);
+              }))
+      .function("_setOpacity", optional_override([](Transform3D& t, int v) {
+                if (!t.opacity) t.opacity = new Property<Opacity>();
+                t.opacity->value = static_cast<Opacity>(v);
+              }));
 
   // Lite keyframe bindings
   value_object<KeyframePointLite>("KeyframePointLite")
@@ -866,7 +962,7 @@ bool PAGBindInit() {
       // opacity
       .function("_getOpacity", optional_override([](Transform2D& t) {
                 return t.opacity ? static_cast<int>(t.opacity->value) : static_cast<int>(Opaque);
-              }))
+                }))
       .function("_setOpacity", optional_override([](Transform2D& t, int v) {
                 if (!t.opacity) t.opacity = new Property<Opacity>();
                 t.opacity->value = static_cast<Opacity>(v);

@@ -22,6 +22,7 @@
 #include "pag/pag.h"
 #include "base/keyframes/MultiDimensionPointKeyframe.h"
 #include "base/keyframes/SingleEaseKeyframe.h"
+#include "base/keyframes/MultiDimensionPoint3DKeyframe.h"
 #include "pag/file.h"
 #include "rendering/caches/LayerCache.h"
 #include "rendering/caches/RenderCache.h"
@@ -718,6 +719,127 @@ std::shared_ptr<Transform2D> PAGLayer::getTransform2D() const {
   copy->opacity = DeepCloneProperty<Opacity>(src->opacity);
 
   return copy;
+}
+
+namespace {
+template <>
+Keyframe<Point3D>* CloneKeyframeDerived<Point3D>(Keyframe<Point3D>* k) {
+  auto* nk = new MultiDimensionPoint3DKeyframe();
+  nk->startValue = k->startValue;
+  nk->endValue = k->endValue;
+  nk->startTime = k->startTime;
+  nk->endTime = k->endTime;
+  nk->interpolationType = k->interpolationType;
+  nk->bezierOut = k->bezierOut;
+  nk->bezierIn = k->bezierIn;
+  nk->spatialOut = k->spatialOut;
+  nk->spatialIn = k->spatialIn;
+  return nk;
+}
+
+template <typename T>
+static Property<T>* DeepCloneProperty3D(Property<T>* src) {
+  if (src == nullptr) return nullptr;
+  if (src->animatable()) {
+    auto* as = static_cast<AnimatableProperty<T>*>(src);
+    std::vector<Keyframe<T>*> kfs;
+    kfs.reserve(as->keyframes.size());
+    for (auto* k : as->keyframes) {
+      kfs.push_back(CloneKeyframeDerived<T>(k));
+    }
+    return new AnimatableProperty<T>(kfs);
+  }
+  return new Property<T>(src->value);
+}
+}
+
+std::shared_ptr<Transform3D> PAGLayer::getTransform3D() const {
+  LockGuard autoLock(rootLocker);
+  if (layer == nullptr || layer->transform3D == nullptr) {
+    return nullptr;
+  }
+  auto src = layer->transform3D;
+  auto copy = std::make_shared<Transform3D>();
+  // clone all 3D properties
+  copy->anchorPoint = DeepCloneProperty3D<Point3D>(src->anchorPoint);
+  if (src->position) {
+    copy->position = DeepCloneProperty3D<Point3D>(src->position);
+  }
+  copy->xPosition = DeepCloneProperty3D<float>(src->xPosition);
+  copy->yPosition = DeepCloneProperty3D<float>(src->yPosition);
+  copy->zPosition = DeepCloneProperty3D<float>(src->zPosition);
+  copy->scale = DeepCloneProperty3D<Point3D>(src->scale);
+  copy->orientation = DeepCloneProperty3D<Point3D>(src->orientation);
+  copy->xRotation = DeepCloneProperty3D<float>(src->xRotation);
+  copy->yRotation = DeepCloneProperty3D<float>(src->yRotation);
+  copy->zRotation = DeepCloneProperty3D<float>(src->zRotation);
+  copy->opacity = DeepCloneProperty3D<Opacity>(src->opacity);
+  return copy;
+}
+
+void PAGLayer::setTransform3D(const std::shared_ptr<Transform3D>& t3d) {
+  if (!t3d) return;
+  LockGuard autoLock(rootLocker);
+  if (layer == nullptr) return;
+  if (layer->transform3D == nullptr) {
+    layer->transform3D = new Transform3D();
+  }
+  auto* target = layer->transform3D;
+  // assign cloned properties
+  delete target->anchorPoint;
+  target->anchorPoint = DeepCloneProperty3D<Point3D>(t3d->anchorPoint);
+
+  if (t3d->position) {
+    delete target->position;
+    target->position = DeepCloneProperty3D<Point3D>(t3d->position);
+  } else if (target->position) {
+    delete target->position;
+    target->position = nullptr;
+  }
+
+  delete target->xPosition;
+  target->xPosition = DeepCloneProperty3D<float>(t3d->xPosition);
+  delete target->yPosition;
+  target->yPosition = DeepCloneProperty3D<float>(t3d->yPosition);
+  delete target->zPosition;
+  target->zPosition = DeepCloneProperty3D<float>(t3d->zPosition);
+
+  delete target->scale;
+  target->scale = DeepCloneProperty3D<Point3D>(t3d->scale);
+
+  delete target->orientation;
+  target->orientation = DeepCloneProperty3D<Point3D>(t3d->orientation);
+
+  delete target->xRotation;
+  target->xRotation = DeepCloneProperty3D<float>(t3d->xRotation);
+  delete target->yRotation;
+  target->yRotation = DeepCloneProperty3D<float>(t3d->yRotation);
+  delete target->zRotation;
+  target->zRotation = DeepCloneProperty3D<float>(t3d->zRotation);
+
+  delete target->opacity;
+  target->opacity = DeepCloneProperty3D<Opacity>(t3d->opacity);
+
+  // Ensure required defaults to avoid null dereference in excludeVaryingRanges/verify.
+  auto ensureDefaults = [](Transform3D* t) {
+    if (t->anchorPoint == nullptr) t->anchorPoint = new Property<Point3D>(Point3D::Zero());
+    // Ensure at least one position source exists
+    if (t->position == nullptr && t->xPosition == nullptr && t->yPosition == nullptr && t->zPosition == nullptr) {
+      t->position = new Property<Point3D>(Point3D::Zero());
+    }
+    if (t->scale == nullptr) t->scale = new Property<Point3D>(Point3D::Make(1, 1, 1));
+    if (t->orientation == nullptr) t->orientation = new Property<Point3D>(Point3D::Zero());
+    if (t->xRotation == nullptr) t->xRotation = new Property<float>(0.0f);
+    if (t->yRotation == nullptr) t->yRotation = new Property<float>(0.0f);
+    if (t->zRotation == nullptr) t->zRotation = new Property<float>(0.0f);
+    if (t->opacity == nullptr) t->opacity = new Property<Opacity>(Opaque);
+  };
+  ensureDefaults(target);
+
+  if (layerCache) {
+    layerCache->rebuildTransformAndStaticRanges();
+  }
+  notifyModified(true);
 }
 
 namespace {

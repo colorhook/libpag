@@ -19,6 +19,7 @@ import { RenderCanvas } from './core/render-canvas';
 import { setMixin } from './utils/mixin';
 import { TGFXBind } from '@tgfx/binding';
 import { Transform2D } from './transform-2d';
+import { Transform3D } from './transform-3d';
 
 /**
  * Binding pag js module on pag webassembly module.
@@ -44,5 +45,6 @@ export const PAGBind = (module: PAG) => {
   module.Matrix = Matrix;
   module.RenderCanvas = RenderCanvas;
   module.Transform2D = Transform2D;
+  module.Transform3D = Transform3D;
   setMixin(module);
 };

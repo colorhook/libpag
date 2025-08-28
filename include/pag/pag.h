@@ -70,6 +70,7 @@ class Graphic;
 class PAGLayer;
 
 class Transform2D;
+class Transform3D;
 
 /**
  * An image used to replace the contents of PAGImageLayers in a PAGFile.
@@ -489,6 +490,16 @@ class PAG_API PAGLayer : public Content {
    * Only basic values are applied (anchorPoint, position/x&y, scale, rotation, opacity).
    */
   void setTransform2D(const std::shared_ptr<Transform2D>& transform);
+
+  /**
+   * Returns a copy of layer's 3D transform as a standalone object, or null if no 3D transform.
+   */
+  std::shared_ptr<Transform3D> getTransform3D() const;
+
+  /**
+   * Applies the provided 3D transform's values to this layer.
+   */
+  void setTransform3D(const std::shared_ptr<Transform3D>& transform);
 
   /**
    * Marks the content of parent (and parent's parent...) changed. It also marks this layer's

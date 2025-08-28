@@ -70,6 +70,7 @@ export interface PAG extends EmscriptenModule {
     _SetFallbackFontNames: (fontName: any) => void;
   };
   _Transform2D: any;
+  _Transform3D: any;
   _Matrix: {
     _MakeAll: (
       scaleX: number,
@@ -106,6 +107,7 @@ export interface PAG extends EmscriptenModule {
   PAGImageLayer: typeof PAGImageLayer;
   PAGSolidLayer: typeof PAGSolidLayer;
   Transform2D: any;
+  Transform3D: any;
   WebMask: WebMaskConstructor;
   ScalerContext: ScalerContextConstructor;
   VideoReader: VideoDecoderConstructor;

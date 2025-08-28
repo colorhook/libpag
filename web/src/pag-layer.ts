@@ -3,6 +3,7 @@ import { destroyVerify } from './utils/decorators';
 import { Matrix } from './core/matrix';
 import { layer2typeLayer, proxyVector } from './utils/type-utils';
 import { Transform2D } from './transform-2d';
+import { Transform3D } from './transform-3d';
 
 import type { LayerType, Marker, Rect } from './types';
 
@@ -233,6 +234,17 @@ export class PAGLayer {
 
   public setTransform2D(transform: Transform2D): void {
     this.wasmIns._setTransform2D(transform.wasmIns);
+  }
+
+  // --- WASM extension: Transform3D accessors ---
+  public getTransform3D(): Transform3D | null {
+    const wasmIns = this.wasmIns._getTransform3D();
+    if (!wasmIns) return null;
+    return Transform3D.fromWasm(wasmIns);
+  }
+
+  public setTransform3D(transform: Transform3D): void {
+    this.wasmIns._setTransform3D(transform.wasmIns);
   }
 
   /**

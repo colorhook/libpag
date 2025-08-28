@@ -6,6 +6,7 @@ import type { PAGView } from '../src/pag-view';
 import type { PAG as PAGNamespace } from '../src/types';
 import type { PAGComposition } from '../src/pag-composition';
 import type { PAGImageLayer } from '../src/pag-image-layer';
+import { Transform3D } from '../src/transform-3d';
 
 declare global {
   interface Window {
@@ -415,7 +416,7 @@ const debugPagView = (pagFile: any) => {
   console.log("transform.position()", transform.position())
   
   
-  // transform.setXPosition(100);
+  transform.setXPosition(100);
   
   transform.setPositionKeyframes([
     {
@@ -437,10 +438,20 @@ const debugPagView = (pagFile: any) => {
       bezierOut: [],
     },
   ])
-  textLayer.setTransform2D(transform)
+  // textLayer.setTransform2D(transform)
+  
   console.log("transform.position()", textLayer.getTransform2D().getPositionKeyframes())
-  // transform.setPosition({ x: 50, y: 50})
-  // console.log("transform.position()", transform.position())
+
+
+  const t3 = new Transform3D();
+  t3.setAnchorPoint({x:0,y:0,z:0});
+  t3.setPosition({x:0,y:0,z:0});
+  t3.setScale({x:1,y:2,z:1});
+  t3.setXRotation(0); t3.setYRotation(0); t3.setZRotation(0);
+  t3.setOpacity(255);
+  textLayer.setTransform3D(t3);
+
+  console.log("transform.position()", t3.scale())
   
   
   console.log("textLayer.uniqueID =", textLayer.uniqueID());

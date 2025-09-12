@@ -676,6 +676,21 @@ class PAG_API PAGTextLayer : public PAGLayer {
    */
   void reset();
 
+  /**
+   * Returns a copy of the current TextDocument of this text layer.
+   */
+  std::shared_ptr<TextDocument> getTextDocument();
+
+  /**
+   * Replace the text layer's text data. Only a subset of fields are applied.
+   */
+  void setTextDocument(std::shared_ptr<TextDocument> textData);
+
+  /**
+   * Measure the current text layout and return metrics similar to Canvas TextMetrics.
+   */
+  TextMetrics measureText() const;
+
  protected:
   void replaceTextInternal(std::shared_ptr<TextDocument> textData);
   void setMatrixInternal(const Matrix& matrix) override;
@@ -1082,6 +1097,12 @@ class PAG_API PAGFile : public PAGComposition {
    */
   static std::shared_ptr<PAGFile> Load(const std::string& filePath,
                                        const std::string& password = "");
+
+  /**
+   * Creates an empty PAGFile with a single VectorComposition containing one PreCompose layer.
+   * The composition size and duration match the given parameters.
+   */
+  static std::shared_ptr<PAGFile> MakeEmpty(int width, int height, Frame duration);
 
   PAGFile(std::shared_ptr<File> file, PreComposeLayer* layer);
 

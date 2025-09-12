@@ -58,6 +58,9 @@ export interface PAG extends EmscriptenModule {
   _PAGTextLayer: {
     _Make: ((duration: number, text: string, fontSize: number, fontFamily: string, fontStyle: string) => any) &
       ((duration: number, textDocumentHandle: TextDocument) => any);
+    _getTextDocument: () => TextDocument;
+    _setTextDocument: (doc: TextDocument) => void;
+    _measureText?: () => TextMetrics;
   };
   _PAGImageLayer: {
     _Make: (width: number, height: number, duration: number) => any;
@@ -218,6 +221,11 @@ export interface PAGViewEventMap {
    * Notifies the flushed of the animation.
    */
   onAnimationFlushed: PAGView;
+  /**
+   * @patch
+   * Notifies the flushed of the animation.
+   */
+  onFrame: PAGView;
 }
 
 export const enum ParagraphJustification {
@@ -360,6 +368,21 @@ export interface Color {
   red: number;
   green: number;
   blue: number;
+}
+
+export interface TextMetrics {
+  width: number;
+  actualBoundingBoxLeft: number;
+  actualBoundingBoxRight: number;
+  fontBoundingBoxAscent: number;
+  fontBoundingBoxDescent: number;
+  actualBoundingBoxAscent: number;
+  actualBoundingBoxDescent: number;
+  emHeightAscent: number;
+  emHeightDescent: number;
+  hangingBaseline: number;
+  alphabeticBaseline: number;
+  ideographicBaseline: number;
 }
 export interface YUVBuffer {
   data: number[];

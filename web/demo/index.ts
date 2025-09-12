@@ -3,7 +3,7 @@ import { AudioPlayer } from './module/audio-player';
 
 import type { PAGFile } from '../src/pag-file';
 import type { PAGView } from '../src/pag-view';
-import type { PAG as PAGNamespace } from '../src/types';
+import type { PAG as PAGNamespace, TextDocument } from '../src/types';
 import type { PAGComposition } from '../src/pag-composition';
 import type { PAGImageLayer } from '../src/pag-image-layer';
 import { Transform3D } from '../src/transform-3d';
@@ -76,7 +76,7 @@ window.onload = async () => {
     }
   });
   document.getElementById('btn-test-vector-pag')?.addEventListener('click', () => {
-    const url = './assets/like.pag';
+    const url = './assets/blank.pag';
     fetch(url)
       .then((response) => response.arrayBuffer())
       .then((arrayBuffer) => {
@@ -403,17 +403,24 @@ let solidLayer;
  * @param file 
  * @returns 
  */
-const debugPagView = (pagFile: any) => {
+const debugPagView = async (pagFile: PAGFile) => {
+ 
+
   const pagComposition = pagFile as PAGComposition
+  const layer =  pagComposition.getLayerAt(0);
+  const lastLayer =  pagComposition.getLayerAt(pagComposition.numChildren()-1);
+  console.log("numChildren&[0]===", pagComposition.numChildren(),":", layer.layerName(), layer.layerType(), layer.uniqueID(), layer.visible())
+  console.log("last child===", lastLayer.layerName(), lastLayer.layerType(), lastLayer.uniqueID(), lastLayer.visible())
   // pagComposition.getLayerAt(0).setMotionBlur(true);
   pagComposition.setMotionBlur(true);
-  const textLayer = PAG.PAGTextLayer.make(2000000, 'TypeMonkey', 30, 'Helvetica', 'Bold');
+  const textLayer = PAG.PAGTextLayer.make(8000000, 'TypeMonkey', 30, 'LibertinusKeyboard', 'Regular');
   // const matrix = textLayer.matrix();
   // matrix.setTranslate(100, 100);
   // textLayer.setMatrix(matrix);
+  
   textLayer.setMotionBlur(true)
   const transform = textLayer.getTransform2D()
-  console.log("transform.position()", transform.position())
+  console.log("transform.position()", transform.position(), pagComposition.uniqueID())
   
   
   transform.setXPosition(100);
@@ -423,35 +430,59 @@ const debugPagView = (pagFile: any) => {
       startValue: { x: 30, y: 120 },
       endValue: {x: 60, y: 60},
       startTime: 0,
-      endTime: 10,
+      endTime: 150,
       interpolationType: 1,
       bezierIn: [],
       bezierOut: [],
     },
     {
-      startValue: { x: 60, y: 60 },
-      endValue: {x: 30, y: 30},
-      startTime: 10,
-      endTime: 20,
-      interpolationType: 0,
+      startValue: { x: 60, y: 260 },
+      endValue: {x: 30, y: 430},
+      startTime: 50,
+      endTime: 220,
+      interpolationType: 1,
       bezierIn: [],
       bezierOut: [],
     },
   ])
-  // textLayer.setTransform2D(transform)
+  textLayer.setTransform2D(transform)
   
   console.log("transform.position()", textLayer.getTransform2D().getPositionKeyframes())
 
+  
+  // const pagFont = PAG.PAGFont.create('Libertinus Keyboard', 'Regular');
+  // textLayer.setFont(pagFont);
 
-  const t3 = new Transform3D();
-  t3.setAnchorPoint({x:0,y:0,z:0});
-  t3.setPosition({x:0,y:0,z:0});
-  t3.setScale({x:1,y:2,z:1});
-  t3.setXRotation(0); t3.setYRotation(0); t3.setZRotation(0);
-  t3.setOpacity(255);
-  textLayer.setTransform3D(t3);
+  console.log("textLayer.getTextDocument() = ", textLayer.getTextDocument())
+  textLayer.setFontSize(90);
+  
+  const doc = textLayer.getTextDocument();
+  // doc.applyStroke = true;
 
-  console.log("transform.position()", t3.scale())
+  textLayer.setTextDocument(doc)
+  textLayer.setFillColor({
+    red: 255,
+    green: 140,
+    blue: 0,
+  })
+  textLayer.setStrokeColor({
+    red: 0,
+    green: 140,
+    blue: 255,
+  })
+  
+  console.log("textLayer.fillColor", textLayer.fillColor())
+  console.log("textLayer.font", textLayer.font())
+
+  // const t3 = new Transform3D();
+  // t3.setAnchorPoint({x:0,y:0,z:0});
+  // t3.setPosition({x:0,y:0,z:0});
+  // t3.setScale({x:1,y:2,z:1});
+  // t3.setXRotation(0); t3.setYRotation(0); t3.setZRotation(0);
+  // t3.setOpacity(255);
+  // textLayer.setTransform3D(t3);
+
+  // console.log("transform.position()", t3.scale())
   
   
   console.log("textLayer.uniqueID =", textLayer.uniqueID());
@@ -460,19 +491,20 @@ const debugPagView = (pagFile: any) => {
   console.log(">>>>>> layerAdded", layerAdded);
   console.log("pagComposition.numChildren() after", pagComposition.numChildren());
 
-  const textLayer2 = PAG.PAGTextLayer.make(600000, 'One', 30, 'Helvetica', 'Bold');
+  const textLayer2 = PAG.PAGTextLayer.make(6000000, 'One Two Three', 90, 'Helvetica', 'Bold');
   textLayer2.setStartTime(100000)
-  textLayer2.setStrokeColor({
-    red: 100,
-    green: 100,
-    blue: 0,
+  textLayer2.setFillColor({
+    red: 255,
+    green: 255,
+    blue: 255,
   })
-  console.log("textLayer.uniqueID =", textLayer2.uniqueID());
+  textLayer2.setText(">>>>>> 123")
+  console.log("textLayer2.getBounds = ", textLayer2.getBounds())
   pagComposition.addLayer(textLayer2);
 
- 
 
-  solidLayer = PAG.PAGSolidLayer.make(60000, 30, 30, { red: 255, green: 0, blue: 0 }, 100);
+
+  solidLayer = PAG.PAGSolidLayer.make(600000, 90, 90, { red: 255, green: 0, blue: 0 }, 100);
   // pagComposition.attachFile(solidLayer);
   pagComposition.addLayer(solidLayer);
 
@@ -488,12 +520,18 @@ const debugPagView = (pagFile: any) => {
 }
 
 const createPAGView = async (file: File | ArrayBuffer | Blob) => {
+  const url = 'https://fonts.gstatic.com/s/libertinuskeyboard/v2/NaPEcYrQAP5Z2JsyIac0i2DYHaapaf43dru5tEg8zfg.woff2';
+  const blob = await fetch(url).then(r => r.blob());
+  const fontfile = new File([blob], 'Libertinus Keyboard.woff2', { type: 'font/woff2' });
+  await PAG.PAGFont.registerFont('LibertinusKeyboard', fontfile);
+
+
   if (pagFile) pagFile.destroy();
   if (pagView) pagView.destroy();
   const decodeTime = performance.now();
   pagFile = (await PAG.PAGFile.load(file)) as PAGFile;
-  // pagFile = PAG.PAGComposition.make(1080, 1080);
-  debugPagView(pagFile)
+  //pagFile = PAG.PAGFile.makeEmpty(720, 1280, 1500);
+  await debugPagView(pagFile)
   document.getElementById('decode-time')!.innerText = `PAG File decode time: ${Math.floor(
     performance.now() - decodeTime,
   )}ms`;
@@ -504,6 +542,7 @@ const createPAGView = async (file: File | ArrayBuffer | Blob) => {
     performance.now() - initializedTime,
   )}ms`;
   pagView.setRepeatCount(0);
+  pagView.flush()
   
   // 绑定事件监听
   pagView.addListener('onAnimationStart', (event) => {

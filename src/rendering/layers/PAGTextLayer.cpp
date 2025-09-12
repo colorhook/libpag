@@ -21,6 +21,7 @@
 #include "rendering/caches/LayerCache.h"
 #include "rendering/editing/TextReplacement.h"
 #include "rendering/utils/LockGuard.h"
+#include "rendering/renderers/TextRenderer.h"
 
 namespace pag {
 std::shared_ptr<PAGTextLayer> PAGTextLayer::Make(int64_t duration, std::string text, float fontSize,
@@ -118,6 +119,43 @@ void PAGTextLayer::setText(const std::string& text) {
   textDocumentForWrite()->text = text;
 }
 
+std::shared_ptr<TextDocument> PAGTextLayer::getTextDocument() {
+  LockGuard autoLock(rootLocker);
+  auto src = textDocumentForRead();
+  if (src == nullptr) return nullptr;
+  auto copy = std::make_shared<TextDocument>();
+  // Copy all fields (read-only ones will be ignored on set).
+  copy->applyFill = src->applyFill;
+  copy->applyStroke = src->applyStroke;
+  copy->baselineShift = src->baselineShift;
+  copy->boxText = src->boxText;
+  copy->boxTextPos = src->boxTextPos;
+  copy->boxTextSize = src->boxTextSize;
+  copy->firstBaseLine = src->firstBaseLine;
+  copy->fauxBold = src->fauxBold;
+  copy->fauxItalic = src->fauxItalic;
+  copy->fillColor = src->fillColor;
+  copy->fontFamily = src->fontFamily;
+  copy->fontStyle = src->fontStyle;
+  copy->fontSize = src->fontSize;
+  copy->strokeColor = src->strokeColor;
+  copy->strokeOverFill = src->strokeOverFill;
+  copy->strokeWidth = src->strokeWidth;
+  copy->text = src->text;
+  copy->justification = src->justification;
+  copy->leading = src->leading;
+  copy->tracking = src->tracking;
+  copy->backgroundColor = src->backgroundColor;
+  copy->backgroundAlpha = src->backgroundAlpha;
+  copy->direction = src->direction;
+  return copy;
+}
+
+void PAGTextLayer::setTextDocument(std::shared_ptr<TextDocument> textData) {
+  LockGuard autoLock(rootLocker);
+  replaceTextInternal(std::move(textData));
+}
+
 void PAGTextLayer::replaceTextInternal(std::shared_ptr<TextDocument> textData) {
   if (textData == nullptr) {
     reset();
@@ -184,6 +222,60 @@ void PAGTextLayer::setMatrixInternal(const Matrix& matrix) {
     return;
   }
   PAGLayer::setMatrixInternal(matrix);
+}
+
+TextMetrics PAGTextLayer::measureText() const {
+  LockGuard autoLock(rootLocker);
+  TextMetrics m = {};
+  auto td = textDocumentForRead();
+
+  // Measure text bounds using existing layout logic (no text-path options here).
+  tgfx::Rect bounds = tgfx::Rect::MakeEmpty();
+  {
+    auto result = GetLines(td, nullptr);
+    bounds = result.second;
+  }
+
+  // Calculate font ascent/descent from glyph metrics.
+  float minAscent = 0.0f;
+  float maxDescent = 0.0f;
+  CalculateTextAscentAndDescent(td, &minAscent, &maxDescent);
+
+  // Reconstruct font box top/bottom using the same rule as layout (line gap factor 1.2).
+  const float lineGapFactor = 1.2f;
+  float lineHeight = td->fontSize * lineGapFactor;
+  float fontBottom = (maxDescent / (maxDescent - minAscent)) * lineHeight;
+  float fontTop = fontBottom - lineHeight; // negative value
+
+  // Fill metrics.
+  m.width = bounds.width();
+  m.actualBoundingBoxLeft = -bounds.left;
+  m.actualBoundingBoxRight = bounds.right;
+  m.actualBoundingBoxAscent = -bounds.top;
+  m.actualBoundingBoxDescent = bounds.bottom;
+
+  m.fontBoundingBoxAscent = -fontTop;
+  m.fontBoundingBoxDescent = fontBottom;
+
+  // Map em box to font size using proportions from font ascent/descent.
+  float ascAbs = -minAscent;
+  float desAbs = maxDescent;
+  float sum = ascAbs + desAbs;
+  if (sum > 0.0f) {
+    m.emHeightAscent = td->fontSize * (ascAbs / sum);
+    m.emHeightDescent = td->fontSize * (desAbs / sum);
+  } else {
+    // Fallback split.
+    m.emHeightAscent = td->fontSize * 0.8f;
+    m.emHeightDescent = td->fontSize * 0.2f;
+  }
+
+  // Baseline distances relative to alphabetic baseline (approximate).
+  m.alphabeticBaseline = 0.0f;
+  m.hangingBaseline = 0.0f;
+  m.ideographicBaseline = 0.0f;
+
+  return m;
 }
 
 }  // namespace pag

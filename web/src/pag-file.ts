@@ -10,6 +10,16 @@ import { LayerType, PAGTimeStretchMode, TextDocument } from './types';
 @destroyVerify
 export class PAGFile extends PAGComposition {
   /**
+   * Create an empty PAGFile with specified size and duration (in frames).
+   */
+  public static makeEmpty(width: number, height: number, duration: number): PAGFile {
+    if (!(width > 0 && height > 0 && duration > 0))
+      throw new Error('width, height, duration must be positive.');
+    const wasmIns = (PAGModule as any)._PAGFile._MakeEmpty(width, height, duration);
+    if (!wasmIns) throw new Error('MakeEmpty PAGFile failed!');
+    return new PAGFile(wasmIns);
+  }
+  /**
    * Load pag file from file.
    */
   public static async load(data: File | Blob | ArrayBuffer) {

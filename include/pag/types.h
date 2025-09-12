@@ -1567,6 +1567,35 @@ class PAG_API TextDocument {
 typedef std::shared_ptr<TextDocument> TextDocumentHandle;
 
 /**
+ * TextMetrics describes the measured metrics of a text layout, similar to Canvas TextMetrics.
+ */
+struct RTTR_AUTO_REGISTER_CLASS TextMetrics {
+  // The advance width of the laid out text.
+  float width = 0.0f;
+
+  // Distances from the alignment point on the baseline to bounds sides.
+  float actualBoundingBoxLeft = 0.0f;
+  float actualBoundingBoxRight = 0.0f;
+
+  // Font bounding box distances from baseline.
+  float fontBoundingBoxAscent = 0.0f;
+  float fontBoundingBoxDescent = 0.0f;
+
+  // Actual glyph bounding box distances from baseline.
+  float actualBoundingBoxAscent = 0.0f;
+  float actualBoundingBoxDescent = 0.0f;
+
+  // Em box distances from baseline (approximate by font metrics proportions).
+  float emHeightAscent = 0.0f;
+  float emHeightDescent = 0.0f;
+
+  // Baseline offsets relative to alphabetic baseline.
+  float hangingBaseline = 0.0f;
+  float alphabeticBaseline = 0.0f;
+  float ideographicBaseline = 0.0f;
+};
+
+/**
  * Marker stores comments and other metadata and mark important times in a composition or layer.
  */
 struct RTTR_AUTO_REGISTER_CLASS Marker {

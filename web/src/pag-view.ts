@@ -70,6 +70,7 @@ export class PAGView {
     pagView.pagSurface = this.makePAGSurface(pagView.pagGlContext, pagView.rawWidth, pagView.rawHeight);
     pagView.player.setSurface(pagView.pagSurface);
     pagView.player.setComposition(file);
+    pagView.patchOnProgress(0);
     pagView.setProgress(0);
     if (pagView.pagViewOptions.firstFrame) {
       await pagView.flush();
@@ -188,6 +189,7 @@ export class PAGView {
   public async stop(notification = true) {
     this.clearTimer();
     this.playTime = 0;
+    this.patchOnProgress(0);
     this.player.setProgress(0);
     this.playFrame = 0;
     await this.flush();
@@ -219,6 +221,15 @@ export class PAGView {
   public currentFrame(): number {
     return this.player.currentFrame();
   }
+
+  /**
+   * @patch
+   * @param progress 
+   */
+  patchOnProgress(progress: number) {
+    this.eventManager.emit('onFrame', this)
+  }
+
   /**
    * Set the progress of play position, the value is from 0.0 to 1.0.
    */
@@ -226,6 +237,7 @@ export class PAGView {
     this.playTime = progress * this.duration();
     this.startTime = this.getNowTime() * 1000 - this.playTime;
     if (!this.isPlaying) {
+      this.patchOnProgress(progress);
       this.player.setProgress(progress);
     }
     return progress;
@@ -450,6 +462,7 @@ export class PAGView {
     const count = Math.floor(this.playTime / duration);
     if (!force && this.repeatCount >= 0 && count > this.repeatCount) {
       this.clearTimer();
+      this.patchOnProgress(1);
       this.player.setProgress(1);
       await this.flush();
       this.playTime = 0;
@@ -464,6 +477,7 @@ export class PAGView {
     if (this.repeatedTimes < count) {
       this.eventManager.emit('onAnimationRepeat', this);
     }
+    this.patchOnProgress((this.playTime % duration) / duration);
     this.player.setProgress((this.playTime % duration) / duration);
     const res = await this.flush();
     if (this.needResetStartTime()) {

@@ -27,6 +27,41 @@ uint16_t PAGFile::MaxSupportedTagLevel() {
   return File::MaxSupportedTagLevel();
 }
 
+std::shared_ptr<PAGFile> PAGFile::MakeEmpty(int width, int height, Frame duration) {
+  if (width <= 0 || height <= 0 || duration <= 0) {
+    return nullptr;
+  }
+
+  // Create an inner empty VectorComposition that the PreCompose layer will reference.
+  auto inner = new VectorComposition();
+  inner->width = width;
+  inner->height = height;
+  inner->duration = duration;
+  // frameRate uses default 30 unless caller adjusts later on PAGFile.
+
+  // Create the root VectorComposition which contains a single PreCompose layer to the inner comp.
+  // auto outer = new VectorComposition();
+  // outer->width = width;
+  // outer->height = height;
+  // outer->duration = duration;
+
+  // // Build PreCompose layer and attach to outer composition.
+  // auto preCompose = PreComposeLayer::Wrap(inner);
+  // preCompose->startTime = 0;
+  // // Ensure layer's containingComposition reference is set (normally set by Codec::InstallReferences).
+  // preCompose->containingComposition = outer;
+  // outer->layers.push_back(preCompose.release());
+
+  // Compose the file (order matters: last item is mainComposition).
+  std::vector<Composition*> compositions = {inner};
+  std::vector<pag::ImageBytes*> images = {};
+  auto file = Codec::VerifyAndMake(compositions, images);
+  if (file == nullptr) {
+    return nullptr;
+  }
+  return MakeFrom(file);
+}
+
 std::shared_ptr<PAGFile> PAGFile::Load(const void* bytes, size_t length,
                                        const std::string& filePath, const std::string& password) {
   auto file = File::Load(bytes, length, filePath, password);

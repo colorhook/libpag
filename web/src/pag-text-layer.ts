@@ -3,7 +3,7 @@ import { PAGFont } from './pag-font';
 import { PAGLayer } from './pag-layer';
 import { destroyVerify } from './utils/decorators';
 
-import type { Color, TextDocument } from './types';
+import type { Color, TextDocument, TextMetrics } from './types';
 
 @destroyVerify
 export class PAGTextLayer extends PAGLayer {
@@ -94,5 +94,26 @@ export class PAGTextLayer extends PAGLayer {
    */
   public reset() {
     this.wasmIns._reset();
+  }
+
+  /**
+   * Measure the current text metrics, similar to CanvasRenderingContext2D.measureText().
+   */
+  public measureText(): TextMetrics {
+    return this.wasmIns._measureText() as TextMetrics;
+  }
+
+  /**
+   * Get a copy of the TextDocument for this layer.
+   */
+  public getTextDocument(): TextDocument {
+    return this.wasmIns._getTextDocument() as TextDocument;
+  }
+
+  /**
+   * Set/replace text properties by a TextDocument. Only subset of fields are applied.
+   */
+  public setTextDocument(doc: TextDocument) {
+    this.wasmIns._setTextDocument(doc);
   }
 }

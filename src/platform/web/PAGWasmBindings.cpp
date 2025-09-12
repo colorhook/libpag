@@ -378,7 +378,12 @@ bool PAGBindInit() {
       .function("_setStrokeColor", &PAGTextLayer::setStrokeColor)
       .function("_text", &PAGTextLayer::text)
       .function("_setText", &PAGTextLayer::setText)
-      .function("_reset", &PAGTextLayer::reset);
+      .function("_reset", &PAGTextLayer::reset)
+      .function("_getTextDocument", optional_override([](PAGTextLayer& l) {
+                  return l.getTextDocument();
+                }))
+      .function("_setTextDocument", &PAGTextLayer::setTextDocument)
+      .function("_measureText", &PAGTextLayer::measureText);
 
   class_<PAGComposition, base<PAGLayer>>("_PAGComposition")
       .smart_ptr<std::shared_ptr<PAGComposition>>("_PAGComposition")
@@ -427,6 +432,10 @@ bool PAGBindInit() {
   class_<PAGFile, base<PAGComposition>>("_PAGFile")
       .smart_ptr<std::shared_ptr<PAGFile>>("_PAGFile")
       .class_function("_MaxSupportedTagLevel", PAGFile::MaxSupportedTagLevel)
+      .class_function("_MakeEmpty",
+                      optional_override([](int width, int height, int duration) {
+                        return PAGFile::MakeEmpty(width, height, static_cast<Frame>(duration));
+                      }))
       .class_function("_Load",
                       optional_override([](const val& emscriptenData) -> std::shared_ptr<PAGFile> {
                         auto data = CopyDataFromUint8Array(emscriptenData);
@@ -726,6 +735,20 @@ bool PAGBindInit() {
       .field("red", &Color::red)
       .field("green", &Color::green)
       .field("blue", &Color::blue);
+
+  value_object<TextMetrics>("TextMetrics")
+      .field("width", &TextMetrics::width)
+      .field("actualBoundingBoxLeft", &TextMetrics::actualBoundingBoxLeft)
+      .field("actualBoundingBoxRight", &TextMetrics::actualBoundingBoxRight)
+      .field("fontBoundingBoxAscent", &TextMetrics::fontBoundingBoxAscent)
+      .field("fontBoundingBoxDescent", &TextMetrics::fontBoundingBoxDescent)
+      .field("actualBoundingBoxAscent", &TextMetrics::actualBoundingBoxAscent)
+      .field("actualBoundingBoxDescent", &TextMetrics::actualBoundingBoxDescent)
+      .field("emHeightAscent", &TextMetrics::emHeightAscent)
+      .field("emHeightDescent", &TextMetrics::emHeightDescent)
+      .field("hangingBaseline", &TextMetrics::hangingBaseline)
+      .field("alphabeticBaseline", &TextMetrics::alphabeticBaseline)
+      .field("ideographicBaseline", &TextMetrics::ideographicBaseline);
 
   value_object<Marker>("Marker")
       .field("startTime", optional_override([](const Marker& marker) {

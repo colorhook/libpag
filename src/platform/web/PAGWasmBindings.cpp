@@ -293,6 +293,17 @@ bool PAGBindInit() {
       .function("_nextFrame", &PAGLayer::nextFrame)
       .function("_getBounds", &PAGLayer::getBounds)
       .function("_trackMatteLayer", &PAGLayer::trackMatteLayer)
+      .function("_trackMatteType",
+                optional_override([](PAGLayer& pagLayer) {
+                  return static_cast<int>(pagLayer.trackMatteType());
+                }))
+      .function("_setTrackMatte",
+                optional_override([](PAGLayer& pagLayer,
+                                     std::shared_ptr<PAGLayer> matteLayer, int type) {
+                  return pagLayer.setTrackMatte(matteLayer,
+                                                static_cast<TrackMatteType>(type));
+                }))
+      .function("_clearTrackMatte", &PAGLayer::clearTrackMatte)
       .function("_excludedFromTimeline", &PAGLayer::excludedFromTimeline)
       .function("_setExcludedFromTimeline", &PAGLayer::setExcludedFromTimeline)
       .function("_isPAGFile", &PAGLayer::isPAGFile)
@@ -383,7 +394,50 @@ bool PAGBindInit() {
                   return l.getTextDocument();
                 }))
       .function("_setTextDocument", &PAGTextLayer::setTextDocument)
-      .function("_measureText", &PAGTextLayer::measureText);
+      .function("_measureText", &PAGTextLayer::measureText)
+      // v1: per-glyph offset+alpha runtime callback from JS
+      .function("_setGlyphTransform",
+                optional_override([](std::shared_ptr<PAGTextLayer> l, const val& jsFunc) {
+                  struct WebGlyphProvider : public GlyphOffsetAlphaProvider {
+                    val fn;
+                    explicit WebGlyphProvider(val cb) : fn(std::move(cb)) {
+                    }
+                    bool compute(int64_t layerTimeUS, int totalGlyphs, float* dx, float* dy,
+                                 float* alpha) override {
+                      if (!fn.as<bool>()) return false;
+                      // Call per-glyph JS function: fn({index, total}) -> {dx,dy,alpha}
+                      for (int i = 0; i < totalGlyphs; i++) {
+                        auto info = val::object();
+                        info.set("index", i);
+                        info.set("total", totalGlyphs);
+                        info.set("timeUS", static_cast<double>(layerTimeUS));
+                        val ret = fn(info);
+                        if (ret.as<bool>()) {
+                          float rdx = 0.0f, rdy = 0.0f, ra = 1.0f;
+                          if (ret.hasOwnProperty("dx")) rdx = ret["dx"].as<float>();
+                          if (ret.hasOwnProperty("dy")) rdy = ret["dy"].as<float>();
+                          if (ret.hasOwnProperty("alpha")) ra = ret["alpha"].as<float>();
+                          dx[i] = rdx;
+                          dy[i] = rdy;
+                          alpha[i] = ra;
+                        } else {
+                          dx[i] = 0.0f;
+                          dy[i] = 0.0f;
+                          alpha[i] = 1.0f;
+                        }
+                      }
+                      return true;
+                    }
+                  };
+                  if (jsFunc.as<bool>()) {
+                    l->setGlyphTransformProvider(std::make_shared<WebGlyphProvider>(jsFunc));
+                  } else {
+                    l->clearGlyphTransform();
+                  }
+                }))
+      .function("_clearGlyphTransform", optional_override([](std::shared_ptr<PAGTextLayer> l) {
+                l->clearGlyphTransform();
+              }));
 
   class_<PAGComposition, base<PAGLayer>>("_PAGComposition")
       .smart_ptr<std::shared_ptr<PAGComposition>>("_PAGComposition")

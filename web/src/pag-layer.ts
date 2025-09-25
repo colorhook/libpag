@@ -5,7 +5,7 @@ import { layer2typeLayer, proxyVector } from './utils/type-utils';
 import { Transform2D } from './transform-2d';
 import { Transform3D } from './transform-3d';
 
-import type { LayerType, Marker, Rect } from './types';
+import { TrackMatteType, type LayerType, type Marker, type Rect } from './types';
 
 @destroyVerify
 export class PAGLayer {
@@ -200,10 +200,23 @@ export class PAGLayer {
   /**
    * Returns trackMatte layer of this layer.
    */
-  public trackMatteLayer(): PAGLayer {
+  public trackMatteLayer(): PAGLayer | null {
     const wasmIns = this.wasmIns._trackMatteLayer();
-    if (!wasmIns) throw new Error('Get track matte layer fail!');
+    if (!wasmIns) return null;
     return layer2typeLayer(wasmIns);
+  }
+
+  public trackMatteType(): TrackMatteType {
+    return this.wasmIns._trackMatteType() as TrackMatteType;
+  }
+
+  public setTrackMatte(layer: PAGLayer | null, type: TrackMatteType = TrackMatteType.Alpha): boolean {
+    const matteIns = layer ? layer.wasmIns : null;
+    return this.wasmIns._setTrackMatte(matteIns, type) as boolean;
+  }
+
+  public clearTrackMatte(): void {
+    this.wasmIns._clearTrackMatte();
   }
   /**
    * Indicate whether this layer is excluded from parent's timeline. If set to true, this layer's

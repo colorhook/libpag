@@ -18,7 +18,9 @@
 
 #include "TextContentCache.h"
 #include "TextContent.h"
+#include "pag/pag.h"
 #include "base/utils/TGFXCast.h"
+#include "base/utils/TimeUtil.h"
 #include "rendering/graphics/Picture.h"
 #include "rendering/graphics/Shape.h"
 #include "rendering/graphics/Text.h"
@@ -171,6 +173,36 @@ GraphicContent* TextContentCache::createContent(Frame layerFrame) const {
   } else {
     toCalculateBounds = TextAnimatorRenderer::ApplyToGlyphs(
         glyphLines, animators, textDocument->justification, layerFrame);
+  }
+
+  // v1 runtime per-glyph transform: offset(dx,dy) + alpha
+  if (auto* tLayer = static_cast<TextLayer*>(layer)) {
+    if (tLayer->runtimeGlyphProvider != nullptr) {
+      int total = 0;
+      for (auto& line : glyphLines) total += static_cast<int>(line.size());
+      if (total > 0) {
+        std::vector<float> dx(total, 0.0f), dy(total, 0.0f), alpha(total, 1.0f);
+        // layer local time(us)
+        int64_t layerTimeUS = FrameToTime(layerFrame, tLayer->containingComposition->frameRate);
+        bool ok = tLayer->runtimeGlyphProvider->compute(layerTimeUS, total, dx.data(), dy.data(),
+                                                        alpha.data());
+        if (ok) {
+          int idx = 0;
+          for (auto& line : glyphLines) {
+            for (auto& glyph : line) {
+              auto m = glyph->getMatrix();
+              m.postTranslate(dx[idx], dy[idx]);
+              glyph->setMatrix(m);
+              float a = alpha[idx];
+              if (a < 0.0f) a = 0.0f; else if (a > 1.0f) a = 1.0f;
+              glyph->setAlpha(glyph->getAlpha() * a);
+              idx++;
+            }
+          }
+          toCalculateBounds = true;
+        }
+      }
+    }
   }
 
   std::vector<std::shared_ptr<Graphic>> contents = {};

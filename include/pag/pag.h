@@ -411,6 +411,25 @@ class PAG_API PAGLayer : public Content {
   std::shared_ptr<PAGLayer> trackMatteLayer() const;
 
   /**
+   * Returns the current track matte type for this layer.
+   */
+  TrackMatteType trackMatteType() const;
+
+  /**
+   * Sets the track matte for this layer. Passing nullptr clears the current matte.
+   * When providing a matte layer, the layer will be detached from its previous parent
+   * and managed internally by this layer, similar to AE's track matte workflow.
+   * Returns false if the matte cannot be applied (e.g. self reference).
+   */
+  bool setTrackMatte(std::shared_ptr<PAGLayer> matteLayer,
+                     TrackMatteType type = TrackMatteType::Alpha);
+
+  /**
+   * Clears the current track matte on this layer (equivalent to setTrackMatte(nullptr)).
+   */
+  void clearTrackMatte();
+
+  /**
    * Indicate whether this layer is excluded from parent's timeline. If set to true, this layer's
    * current time will not change when parent's current time changes.
    */
@@ -540,6 +559,7 @@ class PAG_API PAGLayer : public Content {
   void removeFromParentOrOwner();
   void attachToTree(std::shared_ptr<std::mutex> newLocker, PAGStage* newStage);
   void detachFromTree();
+  void detachTrackMatteInternal();
   PAGLayer* getTimelineOwner() const;
   PAGLayer* getParentOrOwner() const;
   bool getTransform(Transform* transform);
@@ -608,6 +628,21 @@ class PAG_API PAGSolidLayer : public PAGLayer {
 class TextLayer;
 
 class TextReplacement;
+
+// v1: Per-glyph offset(alpha) runtime provider (platform-agnostic).
+class PAG_API GlyphOffsetAlphaProvider {
+ public:
+  virtual ~GlyphOffsetAlphaProvider() = default;
+  /**
+   * Compute per-glyph offsets and alpha multipliers for current frame.
+   * - layerTimeUS: the layer local time in microseconds.
+   * - totalGlyphs: number of glyphs to fill.
+   * - dx/dy/alpha: arrays with size totalGlyphs, must be filled (alpha should be 0..1).
+   * Return true if any channel is applied; false to skip.
+   */
+  virtual bool compute(int64_t layerTimeUS, int totalGlyphs, float* dx, float* dy,
+                       float* alpha) = 0;
+};
 
 class PAG_API PAGTextLayer : public PAGLayer {
  public:
@@ -691,6 +726,18 @@ class PAG_API PAGTextLayer : public PAGLayer {
    */
   TextMetrics measureText() const;
 
+  // --- v1: per-glyph offset(alpha) runtime animation ---
+  /**
+   * Set a runtime provider to control per-glyph offset(dx,dy) and alpha for this text layer.
+   * Pass nullptr (or call clearGlyphTransform) to disable.
+   */
+  void setGlyphTransformProvider(std::shared_ptr<GlyphOffsetAlphaProvider> provider);
+
+  /**
+   * Clear the runtime per-glyph transform provider.
+   */
+  void clearGlyphTransform();
+
  protected:
   void replaceTextInternal(std::shared_ptr<TextDocument> textData);
   void setMatrixInternal(const Matrix& matrix) override;
@@ -701,6 +748,9 @@ class PAG_API PAGTextLayer : public PAGLayer {
   TextLayer* emptyTextLayer = nullptr;
 
   TextReplacement* replacement = nullptr;
+
+  // Owns the provider lifetime; a raw pointer will be set on TextLayer for quick access in renderer.
+  std::shared_ptr<GlyphOffsetAlphaProvider> _glyphProvider = nullptr;
 
   const TextDocument* textDocumentForRead() const;
 

@@ -278,4 +278,25 @@ TextMetrics PAGTextLayer::measureText() const {
   return m;
 }
 
+void PAGTextLayer::setGlyphTransformProvider(std::shared_ptr<GlyphOffsetAlphaProvider> provider) {
+  LockGuard autoLock(rootLocker);
+  _glyphProvider = std::move(provider);
+  // Bind raw pointer to underlying TextLayer for quick access at render time.
+  auto* t = static_cast<TextLayer*>(layer);
+  if (t) {
+    t->runtimeGlyphProvider = _glyphProvider.get();
+  }
+  notifyModified(true);
+}
+
+void PAGTextLayer::clearGlyphTransform() {
+  LockGuard autoLock(rootLocker);
+  _glyphProvider.reset();
+  auto* t = static_cast<TextLayer*>(layer);
+  if (t) {
+    t->runtimeGlyphProvider = nullptr;
+  }
+  notifyModified(true);
+}
+
 }  // namespace pag

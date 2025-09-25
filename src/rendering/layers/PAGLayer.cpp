@@ -382,6 +382,57 @@ std::shared_ptr<PAGLayer> PAGLayer::trackMatteLayer() const {
   return _trackMatteLayer;
 }
 
+TrackMatteType PAGLayer::trackMatteType() const {
+  LockGuard autoLock(rootLocker);
+  return layer->trackMatteType;
+}
+
+bool PAGLayer::setTrackMatte(std::shared_ptr<PAGLayer> matteLayer, TrackMatteType type) {
+  if (matteLayer && matteLayer.get() == this) {
+    return false;
+  }
+
+  if (!matteLayer) {
+    LockGuard autoLock(rootLocker);
+    if (_trackMatteLayer == nullptr && layer->trackMatteType == TrackMatteType::None) {
+      return true;
+    }
+    detachTrackMatteInternal();
+    notifyModified(true);
+    invalidateCacheScale();
+    return true;
+  }
+
+  ScopedLock autoLock(rootLocker, matteLayer->rootLocker);
+  if (_trackMatteLayer && _trackMatteLayer.get() == matteLayer.get()) {
+    if (layer->trackMatteType != type) {
+      layer->trackMatteType = type;
+      notifyModified(true);
+      invalidateCacheScale();
+    }
+    return true;
+  }
+
+  detachTrackMatteInternal();
+
+  matteLayer->removeFromParentOrOwner();
+  matteLayer->attachToTree(rootLocker, stage);
+  if (rootFile && file == matteLayer->file) {
+    matteLayer->onAddToRootFile(rootFile);
+  }
+  matteLayer->trackMatteOwner = this;
+  _trackMatteLayer = matteLayer;
+  layer->trackMatteLayer = matteLayer->layer;
+  layer->trackMatteType = type;
+  notifyModified(true);
+  invalidateCacheScale();
+  return true;
+}
+
+void PAGLayer::clearTrackMatte() {
+  setTrackMatte(nullptr, TrackMatteType::None);
+}
+
 Point PAGLayer::globalToLocalPoint(float stageX, float stageY) {
   Matrix totalMatrix = Matrix::I();
   auto pagLayer = this;
@@ -528,6 +579,19 @@ void PAGLayer::updateRootLocker(std::shared_ptr<std::mutex> newLocker) {
   rootLocker = newLocker;
 }
 
+void PAGLayer::detachTrackMatteInternal() {
+  if (_trackMatteLayer != nullptr) {
+    if (rootFile && file == _trackMatteLayer->file) {
+      _trackMatteLayer->onRemoveFromRootFile();
+    }
+    _trackMatteLayer->detachFromTree();
+    _trackMatteLayer->trackMatteOwner = nullptr;
+    _trackMatteLayer = nullptr;
+  }
+  layer->trackMatteLayer = nullptr;
+  layer->trackMatteType = TrackMatteType::None;
+}
+
 void PAGLayer::setMatrixInternal(const Matrix& matrix) {
   if (matrix == layerMatrix) {
     return;
@@ -545,8 +609,9 @@ void PAGLayer::removeFromParentOrOwner() {
     }
   }
   if (trackMatteOwner) {
-    detachFromTree();
-    trackMatteOwner->_trackMatteLayer = nullptr;
+    auto owner = trackMatteOwner;
+    ScopedLock autoLock(rootLocker, owner->rootLocker);
+    owner->detachTrackMatteInternal();
     trackMatteOwner = nullptr;
   }
 }

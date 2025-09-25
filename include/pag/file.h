@@ -1716,14 +1716,6 @@ class PAG_API Cache {
   virtual ~Cache() = default;
 };
 
-enum class PAG_API TrackMatteType : uint8_t {
-  None = 0,
-  Alpha = 1,
-  AlphaInverted = 2,
-  Luma = 3,
-  LumaInverted = 4
-};
-
 enum class PAG_API CachePolicy : uint8_t {
   Auto = 0,
   Enable = 1,
@@ -1880,6 +1872,10 @@ class PAG_API TextLayer : public Layer {
   TextPathOptions* pathOption = nullptr;
   TextMoreOptions* moreOption = nullptr;
   std::vector<TextAnimator*> animators;
+
+  // Runtime-only hook: per-glyph offset(alpha) provider set by PAGTextLayer.
+  // Not serialized. May be nullptr.
+  class GlyphOffsetAlphaProvider* RTTR_SKIP_REGISTER_PROPERTY runtimeGlyphProvider = nullptr;
 
   void excludeVaryingRanges(std::vector<TimeRange>* timeRanges) override;
   bool verify() const override;

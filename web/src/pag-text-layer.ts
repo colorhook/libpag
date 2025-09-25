@@ -116,4 +116,20 @@ export class PAGTextLayer extends PAGLayer {
   public setTextDocument(doc: TextDocument) {
     this.wasmIns._setTextDocument(doc);
   }
+
+  /**
+   * v1: Set a runtime per-glyph transform callback.
+   * The callback receives {index,total} and returns {dx,dy,alpha}.
+   */
+  public setGlyphTransform(cb: (info: { index: number; total: number; timeUS?: number }) =>
+    { dx?: number; dy?: number; alpha?: number } | void) {
+    this.wasmIns._setGlyphTransform(cb as any);
+  }
+
+  /**
+   * Clear the runtime per-glyph transform.
+   */
+  public clearGlyphTransform() {
+    this.wasmIns._clearGlyphTransform();
+  }
 }

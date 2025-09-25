@@ -149,6 +149,14 @@ export const enum PAGScaleMode {
   Zoom = 3,
 }
 
+export const enum TrackMatteType {
+  None = 0,
+  Alpha = 1,
+  AlphaInverted = 2,
+  Luma = 3,
+  LumaInverted = 4,
+}
+
 // [Deprecated]
 export const enum PAGViewListenerEvent {
   /**

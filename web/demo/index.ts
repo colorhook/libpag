@@ -407,10 +407,10 @@ const debugPagView = async (pagFile: PAGFile) => {
  
 
   const pagComposition = pagFile as PAGComposition
-  const layer =  pagComposition.getLayerAt(0);
-  const lastLayer =  pagComposition.getLayerAt(pagComposition.numChildren()-1);
-  console.log("numChildren&[0]===", pagComposition.numChildren(),":", layer.layerName(), layer.layerType(), layer.uniqueID(), layer.visible())
-  console.log("last child===", lastLayer.layerName(), lastLayer.layerType(), lastLayer.uniqueID(), lastLayer.visible())
+  // const layer =  pagComposition.getLayerAt(0);
+  // const lastLayer =  pagComposition.getLayerAt(pagComposition.numChildren()-1);
+  // console.log("numChildren&[0]===", pagComposition.numChildren(),":", layer.layerName(), layer.layerType(), layer.uniqueID(), layer.visible())
+  // console.log("last child===", lastLayer.layerName(), lastLayer.layerType(), lastLayer.uniqueID(), lastLayer.visible())
   // pagComposition.getLayerAt(0).setMotionBlur(true);
   pagComposition.setMotionBlur(true);
   const textLayer = PAG.PAGTextLayer.make(8000000, 'TypeMonkey', 30, 'LibertinusKeyboard', 'Regular');
@@ -498,7 +498,7 @@ const debugPagView = async (pagFile: PAGFile) => {
     green: 255,
     blue: 255,
   })
-  textLayer2.setText(">>>>>> 123")
+  textLayer2.setText("TypeMonkey")
   console.log("textLayer2.getBounds = ", textLayer2.getBounds())
   pagComposition.addLayer(textLayer2);
 
@@ -517,6 +517,27 @@ const debugPagView = async (pagFile: PAGFile) => {
   console.log(">>>>>> textLayer.text", textLayer.text());
   console.log(">>>>>> textLayer.fillColor", textLayer.fillColor());
   console.log(">>>>>> textLayer.numChildren", pagComposition.numChildren());
+
+  // v1 demo: simple per-glyph fly-in from right to left with stagger and fade-in
+  const duration = 0.35;
+  const perDelay = 0.06;
+  const slideX = 120;
+  function easeOutCubic(t:number){ t = Math.max(0, Math.min(1, t)); const u = 1 - t; return 1 - u*u*u }
+
+
+  textLayer.setGlyphTransform(({ index, timeUS }) => {
+    const nowSec = (timeUS ?? 0) / 1e6; // layer local time from wasm
+    const p = easeOutCubic((nowSec - index * perDelay) / duration);
+    // if (p <= 0) return { alpha: 0 };
+    return { dx: 0, dy: 20 * index, alpha: 1 };
+  });
+
+  // pagView.addListener('onFrame', (event) => {
+  //   console.log("onFrame", event);
+  //   const transform = textLayer2.getTransform2D();
+  //   transform.setXPosition(transform.xPosition() + 1)
+  //   textLayer2.setTransform2D(transform);
+  // });
 }
 
 const createPAGView = async (file: File | ArrayBuffer | Blob) => {
@@ -531,13 +552,15 @@ const createPAGView = async (file: File | ArrayBuffer | Blob) => {
   const decodeTime = performance.now();
   pagFile = (await PAG.PAGFile.load(file)) as PAGFile;
   //pagFile = PAG.PAGFile.makeEmpty(720, 1280, 1500);
+  const pagCanvas = document.getElementById('pag') as HTMLCanvasElement;
+  pagView = (await PAG.PAGView.init(pagFile, pagCanvas)) as PAGView;
   await debugPagView(pagFile)
   document.getElementById('decode-time')!.innerText = `PAG File decode time: ${Math.floor(
     performance.now() - decodeTime,
   )}ms`;
-  const pagCanvas = document.getElementById('pag') as HTMLCanvasElement;
+  
   const initializedTime = performance.now();
-  pagView = (await PAG.PAGView.init(pagFile, pagCanvas)) as PAGView;
+  
   document.getElementById('initialized-time')!.innerText = `PAG View initialized time: ${Math.floor(
     performance.now() - initializedTime,
   )}ms`;

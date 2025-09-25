@@ -36,6 +36,14 @@ typedef float Percent;    // in the range [0 - 1]
 typedef uint8_t Opacity;  // in the range [0 - 255]
 typedef int64_t Frame;
 
+enum class PAG_API TrackMatteType : uint8_t {
+  None = 0,
+  Alpha = 1,
+  AlphaInverted = 2,
+  Luma = 3,
+  LumaInverted = 4
+};
+
 static constexpr ID ZeroID = 0;
 static constexpr Frame ZeroFrame = 0;
 static constexpr Opacity Opaque = 255;

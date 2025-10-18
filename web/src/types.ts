@@ -16,6 +16,8 @@ import { PAGImageLayer } from './pag-image-layer';
 import { PAGSolidLayer } from './pag-solid-layer';
 import { Matrix as ClassMatrix } from './core/matrix';
 import { RenderCanvas } from './core/render-canvas';
+import type { SlideLeftPreset } from './slide-left-preset';
+import type { PAGRecorder } from './pag-recorder';
 
 import type { ScalerContextConstructor, VideoDecoderConstructor, WebMaskConstructor } from './interfaces';
 
@@ -27,6 +29,17 @@ declare global {
   interface Window {
     WeixinJSBridge?: any;
   }
+}
+
+export interface TextMotionOptions {
+  type?: 'fade' | 'scale' | 'slide' | 'swing';
+  direction?: 'up' | 'left' | 'right' | 'down' | 'side';
+  duration?: number;
+  distance?: number;
+  easing?: 'smooth' | 'easeIn' | 'easeOut' | 'back' | 'bounce' | 'spring';
+  effect?: 'letter' | 'word' | 'none';
+  effect_delay?: number;
+  effect_smooth?: 'smooth' | 'easeIn' | 'easeOut' | 'none';
 }
 
 export interface PAG extends EmscriptenModule {
@@ -61,12 +74,23 @@ export interface PAG extends EmscriptenModule {
     _getTextDocument: () => TextDocument;
     _setTextDocument: (doc: TextDocument) => void;
     _measureText?: () => TextMetrics;
+    _setTextMotionOptions: (options: TextMotionOptions | null) => void;
   };
   _PAGImageLayer: {
     _Make: (width: number, height: number, duration: number) => any;
   };
   _PAGSolidLayer: {
     _Make: (duration: number, width: number, height: number, solidColor: Color, opacity: number) => any;
+  };
+  _SlideLeftPreset: {
+    _Make: (
+      layer: any,
+      durationUS: number,
+      startX: number,
+      endX: number,
+      staggerFraction: number,
+      trailingFactor: number,
+    ) => any;
   };
   _PAGFont: {
     _create: (fontFamily: string, fontStyle: string) => any;
@@ -109,6 +133,8 @@ export interface PAG extends EmscriptenModule {
   PAGTextLayer: typeof PAGTextLayer;
   PAGImageLayer: typeof PAGImageLayer;
   PAGSolidLayer: typeof PAGSolidLayer;
+  PAGRecorder: typeof PAGRecorder;
+  SlideLeftPreset: typeof SlideLeftPreset;
   Transform2D: any;
   Transform3D: any;
   WebMask: WebMaskConstructor;

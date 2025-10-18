@@ -16,7 +16,9 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include <mutex>
 #include "base/utils/TimeUtil.h"
+#include "pag/animation/TextMotionPreset.h"
 #include "pag/pag.h"
 #include "rendering/caches/LayerCache.h"
 #include "rendering/editing/TextReplacement.h"
@@ -62,6 +64,9 @@ PAGTextLayer::PAGTextLayer(std::shared_ptr<pag::File> file, TextLayer* layer)
 }
 
 PAGTextLayer::~PAGTextLayer() {
+  if (textMotionPreset) {
+    textMotionPreset.reset();
+  }
   delete replacement;
   delete emptyTextLayer;
 }
@@ -297,6 +302,39 @@ void PAGTextLayer::clearGlyphTransform() {
     t->runtimeGlyphProvider = nullptr;
   }
   notifyModified(true);
+}
+
+void PAGTextLayer::setTextMotionOptions(const TextMotionOptions* options) {
+  LockGuard autoLock(rootLocker);
+  auto* textLayer = static_cast<TextLayer*>(layer);
+  if (textLayer == nullptr) {
+    return;
+  }
+  auto resetLayerCache = [textLayer]() {
+    std::lock_guard<std::mutex> cacheLock(textLayer->locker);
+    if (textLayer->cache != nullptr) {
+      auto* layerCache = static_cast<LayerCache*>(textLayer->cache);
+      layerCache->invalidateContentCache();
+    }
+  };
+  if (options == nullptr) {
+    if (textMotionPreset) {
+      textMotionPreset->clear();
+      textMotionPreset.reset();
+      resetLayerCache();
+      notifyModified(true);
+      invalidateCacheScale();
+    }
+    return;
+  }
+  if (!textMotionPreset) {
+    textMotionPreset = std::make_unique<TextMotionPreset>(textLayer, frameRateInternal());
+  }
+  if (textMotionPreset && textMotionPreset->apply(*options)) {
+    resetLayerCache();
+    notifyModified(true);
+    invalidateCacheScale();
+  }
 }
 
 }  // namespace pag

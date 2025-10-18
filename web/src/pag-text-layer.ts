@@ -3,7 +3,7 @@ import { PAGFont } from './pag-font';
 import { PAGLayer } from './pag-layer';
 import { destroyVerify } from './utils/decorators';
 
-import type { Color, TextDocument, TextMetrics } from './types';
+import type { Color, TextDocument, TextMetrics, TextMotionOptions } from './types';
 
 @destroyVerify
 export class PAGTextLayer extends PAGLayer {
@@ -131,5 +131,9 @@ export class PAGTextLayer extends PAGLayer {
    */
   public clearGlyphTransform() {
     this.wasmIns._clearGlyphTransform();
+  }
+
+  public setTextMotionOptions(options: TextMotionOptions | null) {
+    this.wasmIns._setTextMotionOptions(options ?? null);
   }
 }

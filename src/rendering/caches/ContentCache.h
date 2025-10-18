@@ -45,6 +45,8 @@ class ContentCache : public FrameCache<Content> {
 
   void update();
 
+  void invalidate();
+
  protected:
   Layer* layer = nullptr;
   bool _cacheEnabled = false;

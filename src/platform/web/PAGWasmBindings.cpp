@@ -16,10 +16,13 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include <algorithm>
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
 #include "base/utils/TGFXCast.h"
 #include "pag/pag.h"
+#include "pag/animation/SlidePreset.h"
+#include "pag/animation/TextMotionOptions.h"
 #include "pag/types.h"
 #include "pag/file.h"
 #include "platform/web/GPUDrawable.h"
@@ -34,6 +37,85 @@
 using namespace emscripten;
 
 namespace pag {
+
+namespace {
+
+TextMotionType ParseTextMotionType(const std::string& value) {
+  if (value == "scale") {
+    return TextMotionType::Scale;
+  }
+  if (value == "slide") {
+    return TextMotionType::Slide;
+  }
+  if (value == "swing") {
+    return TextMotionType::Swing;
+  }
+  return TextMotionType::Fade;
+}
+
+TextMotionDirection ParseTextMotionDirection(const std::string& value) {
+  if (value == "left") {
+    return TextMotionDirection::Left;
+  }
+  if (value == "right") {
+    return TextMotionDirection::Right;
+  }
+  if (value == "down") {
+    return TextMotionDirection::Down;
+  }
+  if (value == "side") {
+    return TextMotionDirection::Side;
+  }
+  return TextMotionDirection::Up;
+}
+
+TextMotionEasing ParseTextMotionEasing(const std::string& value) {
+  if (value == "easeIn") {
+    return TextMotionEasing::EaseIn;
+  }
+  if (value == "easeOut") {
+    return TextMotionEasing::EaseOut;
+  }
+  if (value == "back") {
+    return TextMotionEasing::Back;
+  }
+  if (value == "bounce") {
+    return TextMotionEasing::Bounce;
+  }
+  if (value == "spring") {
+    return TextMotionEasing::Spring;
+  }
+  return TextMotionEasing::Smooth;
+}
+
+TextMotionEffect ParseTextMotionEffect(const std::string& value) {
+  if (value == "letter") {
+    return TextMotionEffect::Letter;
+  }
+  if (value == "word") {
+    return TextMotionEffect::Word;
+  }
+  return TextMotionEffect::None;
+}
+
+TextMotionEffectSmooth ParseTextMotionEffectSmooth(const std::string& value) {
+  if (value == "smooth") {
+    return TextMotionEffectSmooth::Smooth;
+  }
+  if (value == "easeIn") {
+    return TextMotionEffectSmooth::EaseIn;
+  }
+  if (value == "easeOut") {
+    return TextMotionEffectSmooth::EaseOut;
+  }
+  return TextMotionEffectSmooth::None;
+}
+
+inline bool HasProperty(const val& object, const char* key) {
+  return !object.isUndefined() && !object.isNull() && object.hasOwnProperty(key);
+}
+
+}  // namespace
 
 // --- Lite DTOs for keyframes across WASM boundary ---
 struct KeyframePointLite {
@@ -435,9 +517,63 @@ bool PAGBindInit() {
                     l->clearGlyphTransform();
                   }
                 }))
+      .function("_setTextMotionOptions",
+                optional_override([](std::shared_ptr<PAGTextLayer> l, const val& jsOptions) {
+                  if (!l) {
+                    return;
+                  }
+                  if (jsOptions.isNull() || jsOptions.isUndefined()) {
+                    l->setTextMotionOptions(nullptr);
+                    return;
+                  }
+                  TextMotionOptions options;
+                  if (HasProperty(jsOptions, "type")) {
+                    options.type = ParseTextMotionType(jsOptions["type"].as<std::string>());
+                  }
+                  if (HasProperty(jsOptions, "direction")) {
+                    options.direction =
+                        ParseTextMotionDirection(jsOptions["direction"].as<std::string>());
+                  }
+                  if (HasProperty(jsOptions, "easing")) {
+                    options.easing = ParseTextMotionEasing(jsOptions["easing"].as<std::string>());
+                  }
+                  if (HasProperty(jsOptions, "effect")) {
+                    options.effect = ParseTextMotionEffect(jsOptions["effect"].as<std::string>());
+                  }
+                  if (HasProperty(jsOptions, "effect_smooth")) {
+                    options.effectSmooth = ParseTextMotionEffectSmooth(
+                        jsOptions["effect_smooth"].as<std::string>());
+                  }
+                  if (HasProperty(jsOptions, "duration")) {
+                    options.duration =
+                        std::max(0.0, jsOptions["duration"].as<double>()) * 1000.0;
+                  }
+                  if (HasProperty(jsOptions, "effect_delay")) {
+                    options.effectDelay =
+                        std::max(0.0, jsOptions["effect_delay"].as<double>()) * 1000.0;
+                  }
+                  if (HasProperty(jsOptions, "distance")) {
+                    options.distance = jsOptions["distance"].as<double>();
+                  }
+                  l->setTextMotionOptions(&options);
+                }))
       .function("_clearGlyphTransform", optional_override([](std::shared_ptr<PAGTextLayer> l) {
                 l->clearGlyphTransform();
               }));
+
+  class_<SlideLeftPreset>("_SlideLeftPreset")
+      .smart_ptr<std::shared_ptr<SlideLeftPreset>>("_SlideLeftPreset")
+      .class_function("_Make",
+                      optional_override([](std::shared_ptr<PAGTextLayer> layer, double durationUS,
+                                            float startX, float endX, double staggerFraction,
+                                            double trailingFactor) {
+                        return SlideLeftPreset::Make(layer, static_cast<int64_t>(durationUS), startX,
+                                                     endX, staggerFraction, trailingFactor);
+                      }))
+      .function("_apply", &SlideLeftPreset::apply)
+      .function("_reset", &SlideLeftPreset::reset)
+      .function("_duration", &SlideLeftPreset::duration)
+      .function("_progress", &SlideLeftPreset::progress);
 
   class_<PAGComposition, base<PAGLayer>>("_PAGComposition")
       .smart_ptr<std::shared_ptr<PAGComposition>>("_PAGComposition")

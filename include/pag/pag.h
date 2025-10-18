@@ -20,7 +20,10 @@
 
 #include <atomic>
 #include <functional>  // for windows
+#include <memory>
 #include <unordered_map>
+#include "pag/animation/TextMotionOptions.h"
+#include "pag/animation/TextMotionPreset.h"
 #include "pag/decoder.h"
 #include "pag/gpu.h"
 #include "pag/types.h"
@@ -68,6 +71,8 @@ class Content {
 class Graphic;
 
 class PAGLayer;
+
+class TextMotionPreset;
 
 class Transform2D;
 class Transform3D;
@@ -738,6 +743,11 @@ class PAG_API PAGTextLayer : public PAGLayer {
    */
   void clearGlyphTransform();
 
+  /**
+   * Apply a preset text motion configuration. Pass nullptr to remove runtime motion.
+   */
+  void setTextMotionOptions(const TextMotionOptions* options);
+
  protected:
   void replaceTextInternal(std::shared_ptr<TextDocument> textData);
   void setMatrixInternal(const Matrix& matrix) override;
@@ -751,6 +761,8 @@ class PAG_API PAGTextLayer : public PAGLayer {
 
   // Owns the provider lifetime; a raw pointer will be set on TextLayer for quick access in renderer.
   std::shared_ptr<GlyphOffsetAlphaProvider> _glyphProvider = nullptr;
+
+  std::unique_ptr<TextMotionPreset> textMotionPreset = nullptr;
 
   const TextDocument* textDocumentForRead() const;
 

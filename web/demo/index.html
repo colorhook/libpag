@@ -22,6 +22,92 @@
           <button class="mt-24" id="btn-test-vector-pag">Test vector PAG</button>
           <button class="mt-24" id="btn-test-video-pag">Test video PAG</button>
           <button class="mt-24" id="btn-test-text-pag">Test font PAG</button>
+          <button class="mt-24" id="btn-slide-left">Slide Left Demo</button>
+          <button class="mt-24" id="btn-text-motion-demo">Text Motion Demo</button>
+          <div class="mt-12 text-motion-controls">
+            <div>
+              <label>
+                Type
+                <select id="text-motion-type">
+                  <option value="fade">Fade</option>
+                  <option value="scale">Scale</option>
+                  <option value="slide">Slide</option>
+                  <option value="swing">Swing</option>
+                </select>
+              </label>
+            </div>
+            <div class="mt-12">
+              <label>
+                Direction
+                <select id="text-motion-direction">
+                  <option value="up">Up</option>
+                  <option value="left">Left</option>
+                  <option value="right">Right</option>
+                  <option value="down">Down</option>
+                  <option value="side">Side</option>
+                </select>
+              </label>
+            </div>
+            <div class="mt-12">
+              <label>
+                Easing
+                <select id="text-motion-easing">
+                  <option value="smooth">Smooth</option>
+                  <option value="easeIn">Ease In</option>
+                  <option value="easeOut">Ease Out</option>
+                  <option value="back">Back</option>
+                  <option value="bounce">Bounce</option>
+                  <option value="spring">Spring</option>
+                </select>
+              </label>
+            </div>
+            <div class="mt-12">
+              <label>
+                Effect
+                <select id="text-motion-effect">
+                  <option value="letter" selected>Letter</option>
+                  <option value="word">Word</option>
+                  <option value="none">None</option>
+                </select>
+              </label>
+            </div>
+            <div class="mt-12">
+              <label>
+                Duration (ms)
+                <input id="text-motion-duration" type="number" value="1200" min="0" />
+              </label>
+            </div>
+            <div class="mt-12">
+              <label>
+                Distance
+                <input id="text-motion-distance" type="number" value="0.5" step="0.1" />
+              </label>
+            </div>
+            <div class="mt-12">
+              <label>
+                Effect delay (ms)
+                <input id="text-motion-effect-delay" type="number" value="120" min="0" />
+              </label>
+            </div>
+            <div class="mt-12">
+              <label>
+                Effect smooth
+                <select id="text-motion-effect-smooth">
+                  <option value="smooth">Smooth</option>
+                  <option value="easeIn">Ease In</option>
+                  <option value="easeOut">Ease Out</option>
+                  <option value="none">None</option>
+                </select>
+              </label>
+            </div>
+            <div class="mt-12">
+              <button id="btn-apply-text-motion">Apply Text Motion</button>
+              <button class="ml-12" id="btn-clear-text-motion">Clear Motion</button>
+            </div>
+          </div>
+          <button class="mt-24" id="btn-record">Record PAG</button>
+          <div class="mt-12" id="record-progress"></div>
+          <div class="mt-12" id="record-result"></div>
           <button class="mt-24" id="btn-test-font">Load test font</button>
           <button class="mt-24" id="btn-enabled-decoder">Enabled software decoder</button>
           <button class="mt-24" id="btn-disabled-decoder">Disabled software decoder</button>

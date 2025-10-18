@@ -139,6 +139,7 @@ bool LayerCache::contentVisible(Frame contentFrame) {
 }
 
 void LayerCache::updateStaticTimeRanges() {
+  staticTimeRanges.clear();
   // layer->startTime is excluded from all time ranges.
   if (layer->type() == LayerType::PreCompose &&
       static_cast<PreComposeLayer*>(layer)->composition->type() == CompositionType::Vector) {
@@ -184,7 +185,14 @@ void LayerCache::rebuildTransformAndStaticRanges() {
   }
   transformCache = new TransformCache(layer);
   // Recompute static time ranges merged with new transform static ranges and other elements.
-  staticTimeRanges.clear();
+  updateStaticTimeRanges();
+}
+
+void LayerCache::invalidateContentCache() {
+  if (contentCache == nullptr) {
+    return;
+  }
+  contentCache->invalidate();
   updateStaticTimeRanges();
 }
 

@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <mutex>
 #include <unordered_map>
 #include "pag/file.h"
 
@@ -65,6 +66,14 @@ class FrameCache : public Cache {
   Frame startTime = 0;
   Frame duration = 1;
   std::vector<TimeRange> staticTimeRanges;
+
+  void clearFrames() {
+    std::lock_guard<std::mutex> autoLock(locker);
+    for (auto& item : frames) {
+      delete item.second;
+    }
+    frames.clear();
+  }
 
   virtual T* createCache(Frame layerFrame) = 0;
 

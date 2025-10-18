@@ -20,6 +20,8 @@ import { setMixin } from './utils/mixin';
 import { TGFXBind } from '@tgfx/binding';
 import { Transform2D } from './transform-2d';
 import { Transform3D } from './transform-3d';
+import { SlideLeftPreset } from './slide-left-preset';
+import { PAGRecorder } from './pag-recorder';
 
 /**
  * Binding pag js module on pag webassembly module.
@@ -46,5 +48,7 @@ export const PAGBind = (module: PAG) => {
   module.RenderCanvas = RenderCanvas;
   module.Transform2D = Transform2D;
   module.Transform3D = Transform3D;
+  module.PAGRecorder = PAGRecorder;
+  module.SlideLeftPreset = SlideLeftPreset;
   setMixin(module);
 };

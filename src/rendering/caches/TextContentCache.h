@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <memory>
 #include <unordered_map>
 #include "ContentCache.h"
 #include "TextBlock.h"
@@ -29,6 +30,8 @@ class TextContentCache : public ContentCache {
   TextContentCache(TextLayer* layer, ID cacheID, Property<TextDocumentHandle>* sourceText);
   TextContentCache(TextLayer* layer, ID cacheID,
                    const std::vector<std::vector<GlyphHandle>>& lines);
+
+  Content* getCache(Frame contentFrame) override;
 
  protected:
   void excludeVaryingRanges(std::vector<TimeRange>* timeRanges) const override;
@@ -45,5 +48,6 @@ class TextContentCache : public ContentCache {
   std::vector<TextAnimator*>* animators;
   std::unordered_map<TextDocument*, std::shared_ptr<TextBlock>> textBlocks;
   std::shared_ptr<TextBlock> textBlock;
+  std::unique_ptr<GraphicContent> runtimeContent = nullptr;
 };
 }  // namespace pag

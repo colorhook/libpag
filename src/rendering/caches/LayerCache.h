@@ -66,6 +66,9 @@ class LayerCache : public Cache {
   // Rebuilds transform cache and recomputes static time ranges.
   void rebuildTransformAndStaticRanges();
 
+  // Refreshes underlying content cache to reflect runtime modifications (e.g. new text animators).
+  void invalidateContentCache();
+
  private:
   Layer* layer = nullptr;
   TransformCache* transformCache = nullptr;

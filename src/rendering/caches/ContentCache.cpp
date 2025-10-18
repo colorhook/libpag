@@ -89,6 +89,11 @@ bool ContentCache::checkCacheEnabled() {
   return cacheEnabled;
 }
 
+void ContentCache::invalidate() {
+  clearFrames();
+  update();
+}
+
 Content* ContentCache::createCache(Frame layerFrame) {
   auto content = createContent(layerFrame);
   if (_cacheFilters) {

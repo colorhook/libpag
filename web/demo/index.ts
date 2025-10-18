@@ -3,10 +3,12 @@ import { AudioPlayer } from './module/audio-player';
 
 import type { PAGFile } from '../src/pag-file';
 import type { PAGView } from '../src/pag-view';
-import type { PAG as PAGNamespace, TextDocument } from '../src/types';
+import type { PAG as PAGNamespace, TextDocument, TextMotionOptions } from '../src/types';
 import type { PAGComposition } from '../src/pag-composition';
 import type { PAGImageLayer } from '../src/pag-image-layer';
+import type { PAGTextLayer } from '../src/pag-text-layer';
 import { Transform3D } from '../src/transform-3d';
+import { SlideLeftPreset } from '../src/slide-left-preset';
 
 declare global {
   interface Window {
@@ -26,6 +28,148 @@ let audioEl: AudioPlayer;
 let PAG: PAGNamespace;
 let canvasElementSize = 640;
 let isMobile = false;
+let slidePreset: SlideLeftPreset | null = null;
+let slideAnimationFrame = 0;
+let activeRecorder: any = null;
+let textMotionLayer: PAGTextLayer | null = null;
+
+function readNumberInput(id: string, fallback: number): number {
+  const input = document.getElementById(id) as HTMLInputElement | null;
+  if (!input) {
+    return fallback;
+  }
+  const value = Number(input.value);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function updateTextMotionControls(): void {
+  const typeSelect = document.getElementById('text-motion-type') as HTMLSelectElement | null;
+  const directionSelect = document.getElementById('text-motion-direction') as HTMLSelectElement | null;
+  const distanceInput = document.getElementById('text-motion-distance') as HTMLInputElement | null;
+  const effectSelect = document.getElementById('text-motion-effect') as HTMLSelectElement | null;
+  const effectDelayInput = document.getElementById('text-motion-effect-delay') as HTMLInputElement | null;
+  const effectSmoothSelect = document.getElementById('text-motion-effect-smooth') as HTMLSelectElement | null;
+  if (!typeSelect) {
+    return;
+  }
+  const type = typeSelect.value;
+  const directionEnabled = type === 'slide' || type === 'swing';
+  if (directionSelect) directionSelect.disabled = !directionEnabled;
+  if (distanceInput) distanceInput.disabled = type !== 'slide';
+  const effectValue = effectSelect?.value ?? 'none';
+  const effectEnabled = effectValue !== 'none';
+  if (effectDelayInput) effectDelayInput.disabled = !effectEnabled;
+  if (effectSmoothSelect) effectSmoothSelect.disabled = !effectEnabled;
+}
+
+function collectTextMotionOptions(): TextMotionOptions | null {
+  const typeSelect = document.getElementById('text-motion-type') as HTMLSelectElement | null;
+  const directionSelect = document.getElementById('text-motion-direction') as HTMLSelectElement | null;
+  const easingSelect = document.getElementById('text-motion-easing') as HTMLSelectElement | null;
+  const effectSelect = document.getElementById('text-motion-effect') as HTMLSelectElement | null;
+  const effectSmoothSelect = document.getElementById('text-motion-effect-smooth') as HTMLSelectElement | null;
+  if (!typeSelect) {
+    return null;
+  }
+  const type = (typeSelect.value || 'fade') as NonNullable<TextMotionOptions['type']>;
+  const direction = (directionSelect?.value || 'up') as NonNullable<TextMotionOptions['direction']>;
+  const easing = (easingSelect?.value || 'smooth') as NonNullable<TextMotionOptions['easing']>;
+  const effect = (effectSelect?.value || 'none') as NonNullable<TextMotionOptions['effect']>;
+  const effectSmooth = (effectSmoothSelect?.value || 'none') as NonNullable<TextMotionOptions['effect_smooth']>;
+  const duration = Math.max(0, readNumberInput('text-motion-duration', 1200));
+  const distance = Math.max(0, readNumberInput('text-motion-distance', 0.5));
+  const effectDelay = Math.max(0, readNumberInput('text-motion-effect-delay', 120));
+  const options: TextMotionOptions = {
+    type,
+    direction,
+    duration,
+    distance,
+    easing,
+    effect,
+  };
+  if (effect !== 'none') {
+    options.effect_delay = effectDelay;
+    options.effect_smooth = effectSmooth;
+  }
+  return options;
+}
+
+async function applyTextMotionFromUI(): Promise<void> {
+  if (!textMotionLayer) {
+    console.warn('Text motion layer is not initialized. Click "Text Motion Demo" first.');
+    return;
+  }
+  const options = collectTextMotionOptions();
+  if (!options) {
+    return;
+  }
+  textMotionLayer.setTextMotionOptions(options);
+  if (pagView) {
+    pagView.setProgress(0);
+    await pagView.flush();
+    pagView.play();
+  }
+}
+
+async function clearTextMotionOptions(): Promise<void> {
+  if (!textMotionLayer) {
+    return;
+  }
+  textMotionLayer.setTextMotionOptions(null);
+  if (pagView) {
+    pagView.setProgress(0);
+    await pagView.flush();
+  }
+}
+
+async function createTextMotionDemo(): Promise<void> {
+  if (!PAG) {
+    console.warn('PAG is not initialized yet.');
+    return;
+  }
+  if (slideAnimationFrame) {
+    cancelAnimationFrame(slideAnimationFrame);
+    slideAnimationFrame = 0;
+  }
+  slidePreset = null;
+  textMotionLayer = null;
+  if (pagFile) {
+    pagFile.destroy();
+  }
+  if (pagView) {
+    pagView.destroy();
+  }
+  const width = canvasElementSize;
+  const height = canvasElementSize;
+  const durationUS = 3_000_000;
+  const frameRate = 60;
+  const totalFrames = Math.max(1, Math.round((durationUS / 1_000_000) * frameRate));
+  const file = PAG.PAGFile.makeEmpty(width, height, totalFrames);
+  file.removeAllLayers();
+
+  const textLayer = PAG.PAGTextLayer.make(durationUS, 'Text Motion', 72, 'Helvetica', 'Bold');
+  // const doc = textLayer.getTextDocument();
+  // doc.fillColor = { red: 255, green: 255, blue: 255 };
+  // doc.justification = types.ParagraphJustification.CenterJustify;
+  // textLayer.setTextDocument(doc);
+  file.addLayer(textLayer);
+
+  const canvas = document.getElementById('pag') as HTMLCanvasElement;
+  pagFile = file;
+  pagView = (await PAG.PAGView.init(file, canvas)) as PAGView;
+  pagView.setRepeatCount(0);
+  pagView.setProgress(0);
+  await pagView.flush();
+  pagComposition = pagView.getComposition();
+  audioEl = new AudioPlayer(null);
+  document.getElementById('decode-time')!.innerText = 'PAG File decode time: -';
+  document.getElementById('initialized-time')!.innerText = 'PAG View initialized time: -';
+  document.getElementById('control')!.style.display = '';
+  textMotionLayer = textLayer;
+  textMotionLayer.setTextMotionOptions(null);
+  updateTextMotionControls();
+  await applyTextMotionFromUI();
+}
 
 window.onload = async () => {
   PAG = await PAGInit({ locateFile: (file: string) => '../lib/' + file });
@@ -119,6 +263,112 @@ window.onload = async () => {
     pagFile.replaceText(0, textDoc);
     console.log(pagFile.getTextData(0));
     await pagView.flush();
+  });
+  document.getElementById('btn-slide-left')?.addEventListener('click', async () => {
+    await createSlideLeftDemo();
+  });
+  document.getElementById('btn-text-motion-demo')?.addEventListener('click', async () => {
+    await createTextMotionDemo();
+  });
+  document.getElementById('btn-apply-text-motion')?.addEventListener('click', async () => {
+    await applyTextMotionFromUI();
+  });
+  document.getElementById('btn-clear-text-motion')?.addEventListener('click', async () => {
+    await clearTextMotionOptions();
+  });
+  document.getElementById('text-motion-type')?.addEventListener('change', () => {
+    updateTextMotionControls();
+  });
+  document.getElementById('text-motion-effect')?.addEventListener('change', () => {
+    updateTextMotionControls();
+  });
+  updateTextMotionControls();
+  document.getElementById('btn-record')?.addEventListener('click', async () => {
+    if (!PAG || !PAG.PAGRecorder) {
+      alert('Recorder is not available in this environment.');
+      return;
+    }
+    if (!pagFile) {
+      alert('Please load a PAG file first.');
+      return;
+    }
+    if (activeRecorder) {
+      return;
+    }
+    const recordButton = document.getElementById('btn-record') as HTMLButtonElement | null;
+    const progressEl = document.getElementById('record-progress');
+    const resultEl = document.getElementById('record-result');
+    if (recordButton) {
+      recordButton.disabled = true;
+    }
+    if (progressEl) {
+      progressEl.textContent = 'Recording... 0%';
+    }
+    if (resultEl) {
+      resultEl.innerHTML = '';
+    }
+    try {
+      activeRecorder = new PAG.PAGRecorder(pagFile, {
+        frameRate: pagFile.frameRate(),
+        mimeType: 'video/mp4',
+      });
+    } catch (error) {
+      console.error(error);
+      if (progressEl) progressEl.textContent = `Recorder init failed: ${(error as Error).message}`;
+      if (recordButton) recordButton.disabled = false;
+      activeRecorder = null;
+      return;
+    }
+
+    let cleanupRecorderListeners: () => void;
+
+    const onProgress = (event: Event) => {
+      const progress = (event as any).progress ?? 0;
+      if (progressEl) {
+        progressEl.textContent = `Recording... ${(progress * 100).toFixed(0)}%`;
+      }
+    };
+    const onComplete = (event: Event) => {
+      const { blob, filename } = event as any;
+      if (progressEl) {
+        progressEl.textContent = 'Recording complete.';
+      }
+      if (resultEl && blob) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename || 'recording.mp4';
+        link.textContent = 'Download recording';
+        link.className = 'mt-12';
+        resultEl.innerHTML = '';
+        resultEl.appendChild(link);
+      }
+      cleanupRecorderListeners();
+      if (recordButton) recordButton.disabled = false;
+      activeRecorder = null;
+    };
+    const onError = (event: Event) => {
+      const error = (event as any).error;
+      console.error('Recording failed', error);
+      if (progressEl) {
+        progressEl.textContent = `Recording failed: ${error?.message ?? error}`;
+      }
+      cleanupRecorderListeners();
+      if (recordButton) recordButton.disabled = false;
+      activeRecorder = null;
+    };
+
+    cleanupRecorderListeners = () => {
+      if (!activeRecorder) return;
+      activeRecorder.removeEventListener('progress', onProgress);
+      activeRecorder.removeEventListener('complete', onComplete);
+      activeRecorder.removeEventListener('error', onError);
+    };
+
+    activeRecorder.addEventListener('progress', onProgress);
+    activeRecorder.addEventListener('complete', onComplete);
+    activeRecorder.addEventListener('error', onError);
+    activeRecorder.start();
   });
   document.getElementById('btn-enabled-decoder')?.addEventListener('click', async () => {
     if (!window.ffavc) await loadScript('https://cdn.jsdelivr.net/npm/ffavc@latest/lib/ffavc.min.js');
@@ -274,6 +524,69 @@ window.onload = async () => {
     }
     pagView.setCacheScale(cacheScale);
   });
+};
+
+const runSlideLeftAnimation = (durationUS: number) => {
+  const durationSec = durationUS / 1_000_000;
+  const start = performance.now();
+  const tick = () => {
+    if (!slidePreset || !pagView) {
+      return;
+    }
+    const elapsedSec = (performance.now() - start) / 1000;
+    const progress = Math.min(elapsedSec / durationSec, 1);
+    slidePreset.apply(progress);
+    pagView.flush();
+    if (progress < 1) {
+      slideAnimationFrame = requestAnimationFrame(tick);
+    } else {
+      slideAnimationFrame = 0;
+    }
+  };
+  if (slideAnimationFrame) {
+    cancelAnimationFrame(slideAnimationFrame);
+  }
+  slideAnimationFrame = requestAnimationFrame(tick);
+};
+
+const createSlideLeftDemo = async () => {
+  textMotionLayer = null;
+  const width = canvasElementSize;
+  const height = canvasElementSize;
+  const durationUS = 3_000_000;
+  const frameRate = 60;
+  const totalFrames = Math.max(1, Math.round((durationUS / 1_000_000) * frameRate));
+  if (pagFile) {
+    pagFile.destroy();
+  }
+  const file = PAG.PAGFile.makeEmpty(width, height, totalFrames);
+  file.removeAllLayers();
+
+  const textLayer = PAG.PAGTextLayer.make(durationUS, 'Hello', 30, 'Helvetica', 'Bold');
+  const doc = textLayer.getTextDocument();
+  doc.fillColor = { red: 255, green: 255, blue: 255 };
+  // doc.justification = types.ParagraphJustification.CenterJustify;
+  textLayer.setTextDocument(doc);
+  file.addLayer(textLayer);
+  textLayer.setMotionBlur(true)
+
+  if (pagView) {
+    pagView.destroy();
+  }
+
+  const canvas = document.getElementById('pag') as HTMLCanvasElement;
+  pagFile = file;
+  pagView = (await PAG.PAGView.init(file, canvas)) as PAGView;
+  pagView.setRepeatCount(0);
+  slidePreset = SlideLeftPreset.make(textLayer, durationUS, width * 0.8, width * 0.15, 0.6, 1.0);
+  slidePreset.apply(0);
+  await pagView.flush();
+  pagComposition = pagView.getComposition();
+  audioEl = new AudioPlayer(null);
+  document.getElementById('decode-time')!.innerText = 'PAG File decode time: -';
+  document.getElementById('initialized-time')!.innerText = 'PAG View initialized time: -';
+  document.getElementById('control')!.style.display = '';
+  runSlideLeftAnimation(durationUS);
 };
 
 const existsLayer = (pagLayer: object) => {
@@ -541,6 +854,7 @@ const debugPagView = async (pagFile: PAGFile) => {
 }
 
 const createPAGView = async (file: File | ArrayBuffer | Blob) => {
+  textMotionLayer = null;
   const url = 'https://fonts.gstatic.com/s/libertinuskeyboard/v2/NaPEcYrQAP5Z2JsyIac0i2DYHaapaf43dru5tEg8zfg.woff2';
   const blob = await fetch(url).then(r => r.blob());
   const fontfile = new File([blob], 'Libertinus Keyboard.woff2', { type: 'font/woff2' });

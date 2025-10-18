@@ -49,6 +49,22 @@ TextContentCache::TextContentCache(TextLayer* layer, ID cacheID,
   initTextGlyphs(&lines);
 }
 
+Content* TextContentCache::getCache(Frame contentFrame) {
+  auto textLayer = static_cast<TextLayer*>(layer);
+  if (textLayer->runtimeGlyphProvider == nullptr) {
+    return ContentCache::getCache(contentFrame);
+  }
+  if (contentFrame >= layer->duration) {
+    contentFrame = layer->duration - 1;
+  }
+  if (contentFrame < 0) {
+    contentFrame = 0;
+  }
+  auto content = ContentCache::createCache(contentFrame + layer->startTime);
+  runtimeContent.reset(static_cast<GraphicContent*>(content));
+  return runtimeContent.get();
+}
+
 static float GetMaxScale(std::vector<TextAnimator*>* animators) {
   if (animators == nullptr) {
     return 1.0f;

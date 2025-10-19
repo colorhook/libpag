@@ -19,10 +19,12 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include "pag/animation/TextMotionOptions.h"
 
 namespace pag {
 
+enum class AnchorPointGrouping : uint8_t;
 class TextLayer;
 
 /**
@@ -48,7 +50,8 @@ class TextMotionPreset {
   TextLayer* layer = nullptr;
   float frameRate = 60.0f;
   std::size_t baseAnimatorCount = 0;
+  bool createdMoreOption = false;
+  AnchorPointGrouping originalGrouping = static_cast<AnchorPointGrouping>(0);
 };
 
 }  // namespace pag
-

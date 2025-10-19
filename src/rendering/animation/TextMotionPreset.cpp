@@ -248,6 +248,11 @@ TextMotionPreset::TextMotionPreset(TextLayer* textLayer, float rate)
     : layer(textLayer), frameRate(rate) {
   if (layer) {
     baseAnimatorCount = layer->animators.size();
+    if (layer->moreOption != nullptr) {
+      originalGrouping = layer->moreOption->anchorPointGrouping;
+    } else {
+      originalGrouping = AnchorPointGrouping::Character;
+    }
   }
 }
 
@@ -258,6 +263,15 @@ TextMotionPreset::~TextMotionPreset() {
 void TextMotionPreset::clear() {
   if (layer == nullptr) {
     return;
+  }
+  if (createdMoreOption) {
+    if (layer->moreOption != nullptr) {
+      delete layer->moreOption;
+      layer->moreOption = nullptr;
+    }
+    createdMoreOption = false;
+  } else if (layer->moreOption != nullptr) {
+    layer->moreOption->anchorPointGrouping = originalGrouping;
   }
   auto& animators = layer->animators;
   while (animators.size() > baseAnimatorCount) {
@@ -277,6 +291,7 @@ bool TextMotionPreset::apply(const TextMotionOptions& options) {
   }
   auto textDocument = textData.get();
   auto [lines, bounds] = GetLines(textDocument, layer->pathOption);
+  (void)bounds;
   std::vector<GlyphHandle> glyphs;
   for (auto& line : lines) {
     for (auto& glyph : line) {
@@ -294,6 +309,29 @@ bool TextMotionPreset::apply(const TextMotionOptions& options) {
   const double totalStaggerUS =
       (ranges.size() > 1) ? delayUS * static_cast<double>(ranges.size() - 1) : 0.0;
   bool anyCreated = false;
+
+  AnchorPointGrouping targetGrouping = AnchorPointGrouping::Character;
+  if (options.effect == TextMotionEffect::Word) {
+    targetGrouping = AnchorPointGrouping::Word;
+  } else if (options.effect == TextMotionEffect::None) {
+    targetGrouping = AnchorPointGrouping::All;
+  }
+
+  auto alignmentTarget = Point::Make(0.5f, 0.5f);
+  if (layer->moreOption == nullptr) {
+    layer->moreOption = new TextMoreOptions();
+    if (layer->moreOption->groupingAlignment == nullptr) {
+      auto* alignProp = new Property<Point>();
+      alignProp->value = alignmentTarget;
+      layer->moreOption->groupingAlignment = alignProp;
+    }
+    createdMoreOption = true;
+  } else if (layer->moreOption->groupingAlignment == nullptr) {
+    auto* alignProp = new Property<Point>();
+    alignProp->value = alignmentTarget;
+    layer->moreOption->groupingAlignment = alignProp;
+  }
+  layer->moreOption->anchorPointGrouping = targetGrouping;
 
   for (size_t i = 0; i < ranges.size(); ++i) {
     auto range = ranges[i];
@@ -333,7 +371,11 @@ bool TextMotionPreset::apply(const TextMotionOptions& options) {
     selector->end = new Property<Percent>(ToPercent(range.end, glyphCount));
     selector->offset = new Property<float>(0.0f);
     selector->units = TextRangeSelectorUnits::Percentage;
-    selector->basedOn = TextSelectorBasedOn::Characters;
+    if (options.effect == TextMotionEffect::Word) {
+      selector->basedOn = TextSelectorBasedOn::Words;
+    } else {
+      selector->basedOn = TextSelectorBasedOn::Characters;
+    }
     selector->mode = new Property<TextSelectorMode>(TextSelectorMode::Add);
     selector->amount = new Property<Percent>(1.0f);
     selector->shape = TextRangeSelectorShape::Square;
